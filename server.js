@@ -517,7 +517,7 @@ wss.on('connection', (ws) => {
 });
 
 const PORT = process.env.PORT || 7867;
-server.listen(PORT, () => {
+server.listen(PORT, '::', () => {
     console.log(`Rust Storage Dashboard → http://localhost:${PORT}`);
     // Auto-start FCM pairing listener if credentials are available
     if (config.gcmAndroidId && config.gcmSecurityToken) {

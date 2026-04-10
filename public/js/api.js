@@ -112,13 +112,22 @@ async function saveConfig() {
 
 async function loadConfig() {
   try {
-    const cfg = await api('GET', '/api/config');
+    const [cfg, initialState] = await Promise.all([
+      api('GET', '/api/config'),
+      api('GET', '/api/state'),
+    ]);
+
     document.getElementById('cfgIp').value = cfg.serverIp || '';
     document.getElementById('cfgPort').value = cfg.appPort || 28082;
     document.getElementById('cfgSteamId').value = cfg.steamId || '';
     document.getElementById('cfgToken').value = cfg.playerToken || '';
     document.getElementById('cfgGcmId').value = cfg.gcmAndroidId || '';
     document.getElementById('cfgGcmToken').value = cfg.gcmSecurityToken || '';
+
+    // Render actual server state immediately so the page doesn't flash "Disconnected"
+    // while the WebSocket is still being established
+    state = initialState;
+    render();
 
     // Pre-populate promptedIds so existing monitors don't trigger the naming modal on load
     (cfg.entityIds || []).forEach(id => promptedIds.add(String(id)));
