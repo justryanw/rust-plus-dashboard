@@ -312,7 +312,8 @@
     }
 
     .monitor-header:hover { background: #2a2f45; }
-    .monitor-header:hover .monitor-delete { opacity: 1; }
+    .monitor-header:hover .monitor-delete,
+    .monitor-header:hover .monitor-edit { opacity: 1; }
 
     .monitor-name { font-weight: 700; font-size: 0.9rem; flex: 1; }
     .monitor-delete {
@@ -328,6 +329,8 @@
       line-height: 1;
     }
     .monitor-delete:hover { background: rgba(248,113,113,0.15); }
+    .monitor-edit { opacity: 0; background: none; border: none; cursor: pointer; font-size: 0.9rem; padding: 3px 5px; border-radius: 4px; line-height: 1; }
+    .monitor-edit:hover { background: rgba(232,98,42,0.15); }
 
     .monitor-capacity {
       font-size: 0.75rem;
@@ -366,6 +369,27 @@
     .monitor-item-qty { font-weight: 700; color: var(--accent2); }
 
     .monitor-collapsed .monitor-items { display: none; }
+
+    /* ── Groups section ── */
+    .groups-section { margin-top: 28px; }
+    .groups-section h2 { font-size: 0.95rem; font-weight: 700; color: var(--text-muted); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .group-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    .group-header { padding: 12px 16px; background: var(--surface2); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+    .group-header:hover { background: #2a2f45; }
+    .group-name { font-weight: 700; font-size: 0.9rem; flex: 1; }
+    .group-items { padding: 10px 16px; max-height: 260px; overflow-y: auto; }
+    .group-collapsed .group-items { display: none; }
+    .group-collapsed .group-bar { display: none; }
+
+    /* ── Group combobox ── */
+    .group-combobox { position: relative; display: flex; align-items: stretch; gap: 0; margin-bottom: 16px; }
+    .group-combobox input { flex: 1; border-radius: var(--radius) 0 0 var(--radius) !important; margin-bottom: 0 !important; }
+    .group-dropdown-btn { background: var(--surface2); border: 1px solid var(--border); border-left: none; border-radius: 0 var(--radius) var(--radius) 0; padding: 0 10px; cursor: pointer; color: var(--text-muted); font-size: 0.8rem; flex-shrink: 0; }
+    .group-dropdown-btn:hover { background: #2a2f45; color: var(--text); }
+    .group-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-top: 2px; z-index: 200; max-height: 180px; overflow-y: auto; box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
+    .group-dropdown-item { padding: 8px 12px; cursor: pointer; font-size: 0.88rem; }
+    .group-dropdown-item:hover { background: var(--surface2); }
+    .group-dropdown-empty { padding: 8px 12px; font-size: 0.82rem; color: var(--text-muted); }
 
     /* ── Empty state ── */
     .empty-state {
@@ -437,6 +461,7 @@
     /* ── Source list (in cards/table) ── */
     .source-list { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; align-items: center; }
     .source-row { display: inline-flex; align-items: center; gap: 3px; font-size: 0.7rem; background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; white-space: nowrap; }
+    .source-row.is-group { border-color: var(--accent); color: var(--accent2); }
     .source-row-name { color: var(--text-muted); }
     .source-row-qty { color: var(--accent2); font-weight: 600; }
     .source-more { font-size: 0.68rem; color: var(--text-muted); white-space: nowrap; }
@@ -524,7 +549,7 @@
   <div class="controls" id="controlsBar">
     <div class="search-wrap">
       <span class="search-icon">🔍</span>
-      <input id="searchInput" type="text" placeholder="Search items…" oninput="renderInventory();renderMonitors()" />
+      <input id="searchInput" type="text" placeholder="Search items…" oninput="renderInventory();renderGroups();renderUngrouped();renderMonitors()" />
     </div>
     <select class="sort-select" id="sortSelect" onchange="renderInventory()">
       <option value="qty-desc">Quantity ↓</option>
@@ -541,6 +566,18 @@
 
   <!-- Inventory display -->
   <div id="inventoryContainer"></div>
+
+  <!-- Groups section -->
+  <div class="groups-section" id="groupsSection" style="display:none">
+    <h2>Groups</h2>
+    <div class="monitors-grid" id="groupsGrid"></div>
+  </div>
+
+  <!-- Ungrouped monitors section -->
+  <div class="monitors-section" id="ungroupedSection" style="display:none">
+    <h2>Ungrouped</h2>
+    <div class="monitors-grid" id="ungroupedGrid"></div>
+  </div>
 
   <!-- Individual monitors section -->
   <div class="monitors-section" id="monitorsSection" style="display:none">
@@ -611,7 +648,13 @@
     <h2>Name this Monitor</h2>
     <p id="pairModalSub">Entity ID: —</p>
     <label>Name</label>
-    <input id="pairNameInput" type="text" placeholder="e.g. Main Base, Outpost…" onkeydown="if(event.key==='Enter')savePairName()" />
+    <input id="pairNameInput" type="text" placeholder="e.g. Storage Monitor" onkeydown="if(event.key==='Enter')savePairName()" />
+    <label style="margin-top:12px">Group <span style="color:var(--text-muted);font-weight:400">(optional)</span></label>
+    <div class="group-combobox" id="groupCombobox">
+      <input id="pairGroupInput" type="text" placeholder="e.g. Main Base, Outpost…" onkeydown="if(event.key==='Enter')savePairName();if(event.key==='Escape')closeGroupDropdown()" oninput="filterGroupDropdown()" autocomplete="off" />
+      <button type="button" class="group-dropdown-btn" onclick="toggleGroupDropdown()" tabindex="-1">▾</button>
+      <div class="group-dropdown" id="groupDropdown" style="display:none"></div>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="dismissPairModal()">Skip</button>
       <button class="btn btn-primary" onclick="savePairName()">Save</button>
@@ -782,6 +825,8 @@
     renderStatus();
     renderStats();
     renderInventory();
+    renderGroups();
+    renderUngrouped();
     renderMonitors();
     checkNewUnlabeledMonitors();
   }
@@ -972,20 +1017,29 @@
   }
 
   function itemSources(item) {
-    return (item.sources || [])
-      .map(id => {
-        const m = (state.monitors || {})[id];
-        const qty = (m?.items || []).filter(i => i.itemId === item.itemId).reduce((s, i) => s + i.quantity, 0);
-        return { id, label: m?.label || `#${id}`, qty };
-      })
-      .sort((a, b) => b.qty - a.qty);
+    const entityGroups = (state.config || {}).entityGroups || {};
+    const monitors = state.monitors || {};
+    const groupTotals = {};
+    const ungrouped = [];
+    for (const id of (item.sources || [])) {
+      const m = monitors[id];
+      const qty = (m?.items || []).filter(i => i.itemId === item.itemId).reduce((s, i) => s + i.quantity, 0);
+      const groupName = entityGroups[String(id)];
+      if (groupName) {
+        groupTotals[groupName] = (groupTotals[groupName] || 0) + qty;
+      } else {
+        ungrouped.push({ id, label: m?.label || `#${id}`, qty, isGroup: false });
+      }
+    }
+    const grouped = Object.entries(groupTotals).map(([name, qty]) => ({ id: null, label: name, qty, isGroup: true }));
+    return [...grouped, ...ungrouped].sort((a, b) => b.qty - a.qty);
   }
 
   function sourceListHTML(sources, max) {
     const shown = sources.slice(0, max);
     const rest = sources.length - max;
     return `<div class="source-list">
-      ${shown.map(s => `<span class="source-row"><span class="source-row-name">${escHtml(s.label)}</span><span class="source-row-qty">×${fmt(s.qty)}</span></span>`).join('')}
+      ${shown.map(s => `<span class="source-row${s.isGroup ? ' is-group' : ''}"><span class="source-row-name">${escHtml(s.label)}</span><span class="source-row-qty">×${fmt(s.qty)}</span></span>`).join('')}
       ${rest > 0 ? `<span class="source-more">+${rest}</span>` : ''}
     </div>`;
   }
@@ -1026,73 +1080,171 @@
     renderInventory();
   }
 
-  function renderMonitors() {
+  function renderGroups() {
+    const section = document.getElementById('groupsSection');
+    const grid = document.getElementById('groupsGrid');
+    if (state.status !== 'connected') { section.style.display = 'none'; return; }
+
+    const entityGroups = (state.config || {}).entityGroups || {};
     const monitors = state.monitors || {};
-    const section = document.getElementById('monitorsSection');
-    const grid = document.getElementById('monitorsGrid');
-
     const query = document.getElementById('searchInput').value.toLowerCase().trim();
-    const allEntries = Object.values(monitors);
-    const entries = query
-      ? allEntries.filter(m => (m.items || []).some(i =>
-          getItemName(i.itemId).toLowerCase().includes(query) || String(i.itemId).includes(query)
-        ))
-      : allEntries;
 
-    if (allEntries.length === 0 || state.status !== 'connected') { section.style.display = 'none'; return; }
+    // Build group map: groupName → [monitor, ...]
+    const groupMap = {};
+    for (const [id, groupName] of Object.entries(entityGroups)) {
+      if (!monitors[id]) continue;
+      if (!groupMap[groupName]) groupMap[groupName] = [];
+      groupMap[groupName].push(monitors[id]);
+    }
+
+    const groupNames = Object.keys(groupMap).filter(groupName => {
+      if (!query) return true;
+      return groupMap[groupName].some(m => (m.items || []).some(i =>
+        getItemName(i.itemId).toLowerCase().includes(query) || String(i.itemId).includes(query)
+      ));
+    });
+
+    if (groupNames.length === 0) { section.style.display = 'none'; return; }
     section.style.display = '';
 
-    grid.innerHTML = entries.map(m => {
-      const usedSlots = (m.items || []).length;
-      const cap = m.capacity || 0;
-      const pct = cap ? Math.round((usedSlots / cap) * 100) : 0;
-      const isRemoved = m.error === 'not_found';
-      const isUnpowered = m.unpowered;
+    grid.innerHTML = groupNames.map(groupName => {
+      const members = groupMap[groupName];
       const mergedItems = {};
-      for (const item of (m.items || [])) {
-        const id = String(item.itemId);
-        if (!mergedItems[id]) mergedItems[id] = { itemId: item.itemId, quantity: 0 };
-        mergedItems[id].quantity += item.quantity;
+      let totalUsed = 0, totalCap = 0;
+      let unpoweredCount = 0, errorCount = 0;
+      for (const m of members) {
+        if (m.unpowered) unpoweredCount++;
+        if (m.error) errorCount++;
+        totalCap += m.capacity || 0;
+        totalUsed += (m.items || []).length;
+        for (const item of (m.items || [])) {
+          const key = String(item.itemId);
+          if (!mergedItems[key]) mergedItems[key] = { itemId: item.itemId, quantity: 0 };
+          mergedItems[key].quantity += item.quantity;
+        }
       }
+      const pct = totalCap ? Math.round((totalUsed / totalCap) * 100) : 0;
+      const gid = `grp-${btoa(groupName).replace(/[^a-zA-Z0-9]/g, '')}`;
+      const n = members.length;
+      const statusBadge = errorCount
+        ? `<span style="font-size:0.72rem;background:#3b0f0f;color:var(--red);border:1px solid #7f1d1d;border-radius:4px;padding:1px 6px">⚠ ${errorCount}/${n} Error</span>`
+        : unpoweredCount
+        ? `<span style="font-size:0.72rem;background:#2a1f00;color:var(--yellow);border:1px solid #78580a;border-radius:4px;padding:1px 6px">${unpoweredCount}/${n} Unpowered</span>`
+        : `<span class="monitor-capacity">${totalUsed}/${totalCap} slots (${pct}%)</span>`;
       const itemsHTML = Object.values(mergedItems)
+        .filter(item => !query || getItemName(item.itemId).toLowerCase().includes(query) || String(item.itemId).includes(query))
         .sort((a, b) => b.quantity - a.quantity)
         .map(item => `
           <div class="monitor-item">
             ${itemIconHTML(getItemShortname(item.itemId), 24)}
             <span class="monitor-item-name">${escHtml(getItemName(item.itemId))}</span>
             <span class="monitor-item-qty">${item.quantity.toLocaleString()}</span>
-          </div>`)
-        .join('');
-
-      const statusBadge = isRemoved
-        ? `<span style="font-size:0.72rem;background:#3b0f0f;color:var(--red);border:1px solid #7f1d1d;border-radius:4px;padding:1px 6px">No Response</span>`
-        : isUnpowered
-        ? `<span style="font-size:0.72rem;background:#2a1f00;color:var(--yellow);border:1px solid #78580a;border-radius:4px;padding:1px 6px">Unpowered</span>`
-        : m.error
-        ? `<span class="monitor-error">⚠ ${escHtml(m.error)}</span>`
-        : `<span class="monitor-capacity">${usedSlots}/${cap} slots (${pct}%)</span>`;
-
+          </div>`).join('');
       return `
-        <div class="monitor-card" id="mc-${m.entityId}" ${isRemoved ? 'style="opacity:0.5"' : ''}>
-          <div class="monitor-header" onclick="toggleMonitor('${m.entityId}')">
-            <span class="monitor-name">📦 ${escHtml(m.label || m.entityId)}</span>
+        <div class="group-card" id="${gid}">
+          <div class="group-header" onclick="toggleGroup('${gid}')">
+            <span class="group-name">🗃 ${escHtml(groupName)}</span>
+            <span style="font-size:0.72rem;color:var(--text-muted)">${members.length} monitor${members.length !== 1 ? 's' : ''}</span>
             ${statusBadge}
-            <button class="monitor-delete" onclick="removeMonitor(event,'${m.entityId}')" title="Remove monitor">🗑</button>
           </div>
-          ${!m.error && !isUnpowered && cap ? `
-            <div style="padding:0 16px 6px">
-              <div class="capacity-bar"><div class="capacity-fill" style="width:${pct}%"></div></div>
-            </div>` : ''}
-          <div class="monitor-items">
-            ${isRemoved || isUnpowered ? '' : (itemsHTML || '<div style="color:var(--text-muted);font-size:0.82rem;padding:4px 0">Empty</div>')}
+          ${totalCap ? `<div class="group-bar" style="padding:0 16px 6px;background:var(--surface2)">
+            <div class="capacity-bar"><div class="capacity-fill" style="width:${pct}%"></div></div>
+          </div>` : ''}
+          <div class="group-items">
+            ${itemsHTML || '<div style="color:var(--text-muted);font-size:0.82rem;padding:4px 0">Empty</div>'}
           </div>
         </div>`;
     }).join('');
   }
 
+  function toggleGroup(gid) {
+    const card = document.getElementById(gid);
+    if (card) card.classList.toggle('group-collapsed');
+  }
+
+  function monitorCardHTML(m, query = '') {
+    const usedSlots = (m.items || []).length;
+    const cap = m.capacity || 0;
+    const pct = cap ? Math.round((usedSlots / cap) * 100) : 0;
+    const isRemoved = m.error === 'not_found';
+    const isUnpowered = m.unpowered;
+    const mergedItems = {};
+    for (const item of (m.items || [])) {
+      const key = String(item.itemId);
+      if (!mergedItems[key]) mergedItems[key] = { itemId: item.itemId, quantity: 0 };
+      mergedItems[key].quantity += item.quantity;
+    }
+    const itemsHTML = Object.values(mergedItems)
+      .filter(item => !query || getItemName(item.itemId).toLowerCase().includes(query) || String(item.itemId).includes(query))
+      .sort((a, b) => b.quantity - a.quantity)
+      .map(item => `
+        <div class="monitor-item">
+          ${itemIconHTML(getItemShortname(item.itemId), 24)}
+          <span class="monitor-item-name">${escHtml(getItemName(item.itemId))}</span>
+          <span class="monitor-item-qty">${item.quantity.toLocaleString()}</span>
+        </div>`).join('');
+    const statusBadge = isRemoved
+      ? `<span style="font-size:0.72rem;background:#3b0f0f;color:var(--red);border:1px solid #7f1d1d;border-radius:4px;padding:1px 6px">No Response</span>`
+      : isUnpowered
+      ? `<span style="font-size:0.72rem;background:#2a1f00;color:var(--yellow);border:1px solid #78580a;border-radius:4px;padding:1px 6px">Unpowered</span>`
+      : m.error
+      ? `<span class="monitor-error">⚠ ${escHtml(m.error)}</span>`
+      : `<span class="monitor-capacity">${usedSlots}/${cap} slots (${pct}%)</span>`;
+    return `
+      <div class="monitor-card" id="mc-${m.entityId}" ${isRemoved ? 'style="opacity:0.5"' : ''}>
+        <div class="monitor-header" onclick="toggleMonitor('${m.entityId}')">
+          <span class="monitor-name">📦 ${escHtml(m.label || m.entityId)}</span>
+          ${statusBadge}
+          <button class="monitor-edit" onclick="editMonitor(event,'${m.entityId}')" title="Edit monitor">✏️</button>
+          <button class="monitor-delete" onclick="removeMonitor(event,'${m.entityId}')" title="Remove monitor">🗑</button>
+        </div>
+        ${!m.error && !isUnpowered && cap ? `
+          <div style="padding:0 16px 6px">
+            <div class="capacity-bar"><div class="capacity-fill" style="width:${pct}%"></div></div>
+          </div>` : ''}
+        <div class="monitor-items">
+          ${isRemoved || isUnpowered ? '' : (itemsHTML || '<div style="color:var(--text-muted);font-size:0.82rem;padding:4px 0">Empty</div>')}
+        </div>
+      </div>`;
+  }
+
+  function renderSection(sectionId, gridId, entries, allEntries) {
+    const section = document.getElementById(sectionId);
+    const grid = document.getElementById(gridId);
+    if (allEntries.length === 0 || state.status !== 'connected') { section.style.display = 'none'; return; }
+    section.style.display = '';
+    const query = document.getElementById('searchInput').value.toLowerCase().trim();
+    grid.innerHTML = entries.map(m => monitorCardHTML(m, query)).join('');
+  }
+
+  function filteredMonitors(monitors) {
+    const query = document.getElementById('searchInput').value.toLowerCase().trim();
+    if (!query) return monitors;
+    return monitors.filter(m => (m.items || []).some(i =>
+      getItemName(i.itemId).toLowerCase().includes(query) || String(i.itemId).includes(query)
+    ));
+  }
+
+  function renderUngrouped() {
+    const entityGroups = (state.config || {}).entityGroups || {};
+    const all = Object.values(state.monitors || {}).filter(m => !entityGroups[m.entityId]);
+    renderSection('ungroupedSection', 'ungroupedGrid', filteredMonitors(all), all);
+  }
+
+  function renderMonitors() {
+    const all = Object.values(state.monitors || {});
+    renderSection('monitorsSection', 'monitorsGrid', filteredMonitors(all), all);
+  }
+
   function toggleMonitor(id) {
     const card = document.getElementById(`mc-${id}`);
     if (card) card.classList.toggle('monitor-collapsed');
+  }
+
+  function editMonitor(event, id) {
+    event.stopPropagation();
+    promptedIds.add(String(id));
+    _openModal(id);
   }
 
   async function removeMonitor(event, id) {
@@ -1126,17 +1278,56 @@
   function showItemModal(itemId) {
     const item = Object.values(state.inventory || {}).find(i => i.itemId === itemId);
     if (!item) return;
-    const sources = itemSources(item);
+
+    const entityGroups = (state.config || {}).entityGroups || {};
+    const monitors = state.monitors || {};
+    const groupBuckets = {};
+    const ungrouped = [];
+
+    for (const id of (item.sources || [])) {
+      const m = monitors[String(id)];
+      const qty = (m?.items || []).filter(i => i.itemId === item.itemId).reduce((s, i) => s + i.quantity, 0);
+      const groupName = entityGroups[String(id)];
+      if (groupName) {
+        if (!groupBuckets[groupName]) groupBuckets[groupName] = [];
+        groupBuckets[groupName].push({ label: m?.label || `#${id}`, qty });
+      } else {
+        ungrouped.push({ label: m?.label || `#${id}`, qty });
+      }
+    }
+
+    const rows = [];
+    for (const [groupName, members] of Object.entries(groupBuckets)) {
+      const groupTotal = members.reduce((s, m) => s + m.qty, 0);
+      rows.push(`
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--surface2);border-radius:var(--radius);border-left:3px solid var(--accent)">
+          <span style="font-size:0.88rem;font-weight:700">🗃 ${escHtml(groupName)}</span>
+          <span style="font-weight:700;color:var(--accent2)">${groupTotal.toLocaleString()}</span>
+        </div>`);
+      for (const mem of members.sort((a, b) => b.qty - a.qty)) {
+        rows.push(`
+          <div style="margin-left:16px">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 12px;background:var(--bg);border-radius:var(--radius);border-left:2px solid var(--border)">
+            <span style="font-size:0.82rem;color:var(--text-muted)">📦 ${escHtml(mem.label)}</span>
+            <span style="font-size:0.82rem;color:var(--accent2)">${mem.qty.toLocaleString()}</span>
+          </div></div>`);
+      }
+    }
+    for (const s of ungrouped.sort((a, b) => b.qty - a.qty)) {
+      rows.push(`
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--surface2);border-radius:var(--radius)">
+          <span style="font-size:0.88rem">📦 ${escHtml(s.label)}</span>
+          <span style="font-weight:700;color:var(--accent2)">${s.qty.toLocaleString()}</span>
+        </div>`);
+    }
+
+    const locationCount = Object.keys(groupBuckets).length + ungrouped.length;
     const icon = document.getElementById('itemModalIcon');
     icon.src = item.shortname ? `https://wiki.rustclash.com/img/items180/${escHtml(item.shortname)}.png` : '';
     icon.style.display = item.shortname ? '' : 'none';
     document.getElementById('itemModalName').textContent = item.name;
-    document.getElementById('itemModalTotal').textContent = `${item.quantity.toLocaleString()} total across ${sources.length} monitor${sources.length !== 1 ? 's' : ''}`;
-    document.getElementById('itemModalList').innerHTML = sources.map(s => `
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--surface2);border-radius:var(--radius)">
-        <span style="font-size:0.88rem">${escHtml(s.label)}</span>
-        <span style="font-weight:700;color:var(--accent2)">${s.qty.toLocaleString()}</span>
-      </div>`).join('');
+    document.getElementById('itemModalTotal').textContent = `${item.quantity.toLocaleString()} total across ${locationCount} location${locationCount !== 1 ? 's' : ''}`;
+    document.getElementById('itemModalList').innerHTML = rows.join('');
     document.getElementById('itemModal').classList.add('show');
   }
 
@@ -1148,6 +1339,44 @@
   let pendingPairId = null;
   let pairModalResolve = null; // set in promise mode (saveConfig flow)
 
+  function renderGroupDropdown(groups) {
+    const dropdown = document.getElementById('groupDropdown');
+    const query = document.getElementById('pairGroupInput').value.toLowerCase();
+    const filtered = groups.filter(g => g.toLowerCase().includes(query));
+    dropdown.innerHTML = filtered.length
+      ? filtered.map(g => `<div class="group-dropdown-item" onmousedown="selectGroup('${escHtml(g)}')">${escHtml(g)}</div>`).join('')
+      : (groups.length ? '<div class="group-dropdown-empty">No matches</div>' : '<div class="group-dropdown-empty">No existing groups</div>');
+  }
+
+  function toggleGroupDropdown() {
+    const dropdown = document.getElementById('groupDropdown');
+    const isOpen = dropdown.style.display !== 'none';
+    if (isOpen) { closeGroupDropdown(); } else { openGroupDropdown(); }
+  }
+
+  function openGroupDropdown() {
+    const groups = JSON.parse(document.getElementById('groupCombobox').dataset.groups || '[]');
+    renderGroupDropdown(groups);
+    document.getElementById('groupDropdown').style.display = '';
+    document.getElementById('pairGroupInput').focus();
+  }
+
+  function closeGroupDropdown() {
+    document.getElementById('groupDropdown').style.display = 'none';
+  }
+
+  function filterGroupDropdown() {
+    const dropdown = document.getElementById('groupDropdown');
+    if (dropdown.style.display === 'none') return;
+    const groups = JSON.parse(document.getElementById('groupCombobox').dataset.groups || '[]');
+    renderGroupDropdown(groups);
+  }
+
+  function selectGroup(name) {
+    document.getElementById('pairGroupInput').value = name;
+    closeGroupDropdown();
+  }
+
   function _openModal(entityId) {
     pendingPairId = entityId;
     const existingIds = new Set((state.config.entityIds || []).map(String));
@@ -1156,6 +1385,11 @@
     document.getElementById('pairModalSub').textContent = `Entity ID: ${entityId}`;
     const existingLabel = (state.config.entityLabels || {})[entityId];
     document.getElementById('pairNameInput').value = existingLabel || 'Storage Monitor';
+    const existingGroup = (state.config.entityGroups || {})[String(entityId)] || '';
+    document.getElementById('pairGroupInput').value = existingGroup;
+    const allGroups = [...new Set(Object.values(state.config.entityGroups || {}))];
+    document.getElementById('groupCombobox').dataset.groups = JSON.stringify(allGroups);
+    renderGroupDropdown(allGroups);
     document.getElementById('pairModal').classList.add('show');
     setTimeout(() => document.getElementById('pairNameInput').focus(), 50);
   }
@@ -1184,20 +1418,21 @@
   async function _closeModal(name) {
     const id = pendingPairId;
     pendingPairId = null;
+    const group = document.getElementById('pairGroupInput').value.trim();
     document.getElementById('pairModal').classList.remove('show');
     document.getElementById('pairNameInput').value = '';
+    document.getElementById('pairGroupInput').value = '';
+    closeGroupDropdown();
 
     if (pairModalResolve) {
-      // Promise mode: hand the name back to saveConfig
       const resolve = pairModalResolve;
       pairModalResolve = null;
       resolve(name);
       return;
     }
 
-    // Queue mode: only confirm if user didn't skip
     if (name !== null) {
-      await api('POST', '/api/monitor/confirm', { entityId: id, name: name || undefined });
+      await api('POST', '/api/monitor/confirm', { entityId: id, name: name || undefined, group: group || undefined });
     }
     if (monitorQueue.length > 0) showPairModal(monitorQueue.shift());
   }

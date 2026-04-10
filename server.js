@@ -428,6 +428,7 @@ app.delete('/api/monitor/:entityId', (req, res) => {
     delete entityData[id];
     config.entityIds = (config.entityIds || []).filter(e => String(e) !== id);
     if (config.entityLabels) delete config.entityLabels[id];
+    if (config.entityGroups) delete config.entityGroups[id];
     fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
     mergeInventory();
     broadcastState();
@@ -435,7 +436,7 @@ app.delete('/api/monitor/:entityId', (req, res) => {
 });
 
 app.post('/api/monitor/confirm', async (req, res) => {
-    const { entityId, name } = req.body;
+    const { entityId, name, group } = req.body;
     if (!entityId) return res.status(400).json({ error: 'entityId required' });
     const id = String(entityId);
 
@@ -444,6 +445,12 @@ app.post('/api/monitor/confirm', async (req, res) => {
     if (name) {
         if (!config.entityLabels) config.entityLabels = {};
         config.entityLabels[id] = name;
+    }
+    if (group && group.trim()) {
+        if (!config.entityGroups) config.entityGroups = {};
+        config.entityGroups[id] = group.trim();
+    } else if (config.entityGroups) {
+        delete config.entityGroups[id];
     }
     fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
 
