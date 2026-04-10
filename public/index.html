@@ -515,7 +515,7 @@
   <div class="controls">
     <div class="search-wrap">
       <span class="search-icon">🔍</span>
-      <input id="searchInput" type="text" placeholder="Search items…" oninput="renderInventory()" />
+      <input id="searchInput" type="text" placeholder="Search items…" oninput="renderInventory();renderMonitors()" />
     </div>
     <select class="sort-select" id="sortSelect" onchange="renderInventory()">
       <option value="qty-desc">Quantity ↓</option>
@@ -950,9 +950,15 @@
     const section = document.getElementById('monitorsSection');
     const grid = document.getElementById('monitorsGrid');
 
-    const entries = Object.values(monitors);
+    const query = document.getElementById('searchInput').value.toLowerCase().trim();
+    const allEntries = Object.values(monitors);
+    const entries = query
+      ? allEntries.filter(m => (m.items || []).some(i =>
+          getItemName(i.itemId).toLowerCase().includes(query) || String(i.itemId).includes(query)
+        ))
+      : allEntries;
 
-    if (entries.length === 0) { section.style.display = 'none'; return; }
+    if (allEntries.length === 0 || state.status !== 'connected') { section.style.display = 'none'; return; }
     section.style.display = '';
 
     grid.innerHTML = entries.map(m => {
