@@ -390,6 +390,9 @@ textarea { min-height: 70px; resize: vertical; }
 .group-name { font-weight: 700; font-size: 0.9rem; flex: 1; }
 .group-collapsed .group-items { display: none; }
 .group-collapsed .group-bar { display: none; }
+.group-edit-btn { opacity: 0; background: none; border: none; cursor: pointer; font-size: 0.9rem; padding: 3px 5px; border-radius: 4px; line-height: 1; }
+.group-header:hover .group-edit-btn { opacity: 1; }
+.group-edit-btn:hover { background: rgba(232,98,42,0.15); }
 
 /* ── Group combobox ── */
 .group-combobox { position: relative; display: flex; align-items: stretch; gap: 0; margin-bottom: 16px; }

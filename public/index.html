@@ -189,6 +189,19 @@
   </div>
 </div>
 
+<!-- Rename group modal -->
+<div class="modal-overlay" id="renameGroupModal" onclick="if(event.target===this)dismissRenameGroupModal()">
+  <div class="modal" style="width:300px">
+    <h2>Rename Group</h2>
+    <label>Group name</label>
+    <input id="renameGroupInput" type="text" onkeydown="if(event.key==='Enter')saveRenameGroup();if(event.key==='Escape')dismissRenameGroupModal()" />
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="dismissRenameGroupModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveRenameGroup()">Save</button>
+    </div>
+  </div>
+</div>
+
 <script src="/js/state.js"></script>
 <script src="/js/api.js"></script>
 <script src="/js/render.js"></script>

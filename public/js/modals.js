@@ -186,6 +186,30 @@ function dismissPairModal() {
   _closeModal(null);
 }
 
+// ── Rename group modal ────────────────────────────────────────────────────────
+let pendingGroupName = null;
+
+function showRenameGroupModal(name) {
+  pendingGroupName = name;
+  document.getElementById('renameGroupInput').value = name;
+  document.getElementById('renameGroupModal').classList.add('show');
+  setTimeout(() => document.getElementById('renameGroupInput').select(), 50);
+}
+
+async function saveRenameGroup() {
+  const newName = document.getElementById('renameGroupInput').value.trim();
+  if (!newName) return;
+  const oldName = pendingGroupName;
+  dismissRenameGroupModal();
+  await api('POST', '/api/rename-group', { oldName, newName });
+}
+
+function dismissRenameGroupModal() {
+  pendingGroupName = null;
+  document.getElementById('renameGroupModal').classList.remove('show');
+  document.getElementById('renameGroupInput').value = '';
+}
+
 async function _closeModal(name) {
   const id = pendingPairId;
   pendingPairId = null;

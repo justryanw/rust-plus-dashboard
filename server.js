@@ -429,6 +429,20 @@ app.delete('/api/monitor/:entityId', (req, res) => {
     res.json({ success: true });
 });
 
+app.post('/api/rename-group', (req, res) => {
+    const { oldName, newName } = req.body;
+    if (!oldName || !newName || !newName.trim()) return res.status(400).json({ error: 'oldName and newName required' });
+    const trimmed = newName.trim();
+    if (!config.entityGroups) return res.json({ success: true });
+    for (const id of Object.keys(config.entityGroups)) {
+        if (config.entityGroups[id] === oldName) config.entityGroups[id] = trimmed;
+    }
+    try { fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2)); } catch (e) { console.error('Failed to write config.json:', e.message); }
+    mergeInventory();
+    broadcastState();
+    res.json({ success: true });
+});
+
 app.post('/api/monitor/confirm', async (req, res) => {
     const { entityId, name, group } = req.body;
     if (!entityId) return res.status(400).json({ error: 'entityId required' });

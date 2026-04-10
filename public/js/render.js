@@ -456,6 +456,7 @@ function renderGroups() {
           <span class="group-name">🗃 ${escHtml(groupName)}</span>
           <span style="font-size:0.72rem;color:var(--text-muted)">${members.length} monitor${members.length !== 1 ? 's' : ''}</span>
           ${statusBadge}
+          <button class="group-edit-btn" data-group="${escHtml(groupName)}" onclick="event.stopPropagation();showRenameGroupModal(this.dataset.group)" title="Rename group">✏️</button>
         </div>
         ${totalCap ? `<div class="group-bar" style="padding:0 16px 6px;background:var(--surface2)">
           <div class="capacity-bar"><div class="capacity-fill" style="width:${pct}%"></div></div>
