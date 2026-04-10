@@ -666,6 +666,7 @@
   let monitorQueue = [];
   let promptedIds = new Set();
   let monitorsInitialized = false;
+  let hasBeenConnected = false;
 
   // ── WebSocket ─────────────────────────────────────────────────────────────
   function connectWS() {
@@ -678,6 +679,7 @@
         state = newState;
         render();
         if (state.status === 'connected') {
+          hasBeenConnected = true;
           resetPollBar();
           clearTimeout(autoReconnectTimer);
         } else if (state.status === 'disconnected') {
@@ -792,11 +794,15 @@
     const { status, error } = state;
     const cfg = state.config || {};
     const hasConfig = cfg.serverIp && cfg.appPort && cfg.steamId && cfg.playerToken;
-    const autoReconnecting = status === 'disconnected' && hasConfig;
+    const autoReconnecting = hasConfig && (
+      status === 'disconnected' ||
+      (hasBeenConnected && (status === 'connecting' || status === 'error'))
+    );
 
-    badge.className = `status-badge ${autoReconnecting ? 'reconnecting' : status}`;
+    const displayAs = autoReconnecting ? 'reconnecting' : status;
+    badge.className = `status-badge ${displayAs}`;
     const labels = { connected: 'Connected', disconnected: 'Disconnected', connecting: 'Connecting…', reconnecting: 'Reconnecting…', error: 'Error' };
-    text.textContent = labels[autoReconnecting ? 'reconnecting' : status] || status;
+    text.textContent = labels[displayAs] || status;
 
     refreshBtn.disabled = status !== 'connected';
     if (status !== 'connected') { pollBarStart = null; document.getElementById('refreshBtn').style.background = ''; }
@@ -890,7 +896,10 @@
     if (state.status !== 'connected') {
       const cfg = state.config || {};
       const hasConfig = cfg.serverIp && cfg.appPort && cfg.steamId && cfg.playerToken;
-      const reconnecting = (state.status === 'disconnected' || state.status === 'connecting') && hasConfig;
+      const reconnecting = hasConfig && (
+        state.status === 'disconnected' ||
+        (hasBeenConnected && (state.status === 'connecting' || state.status === 'error'))
+      );
       const wantKey = reconnecting ? 'reconnecting' : 'disconnected';
       if (container.dataset.emptyState !== wantKey) {
         container.dataset.emptyState = wantKey;
