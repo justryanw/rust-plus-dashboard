@@ -1,25 +1,32 @@
 const CATEGORY_ORDER = [
-  'resources', 'components', 'weapons', 'ammo', 'explosives', 'attachments',
-  'tools', 'clothing', 'medical', 'food', 'electrical', 'deployables',
-  'modular car parts', 'fun', 'misc'
+  'resources', 'components', 'keycards', 'weapons', 'grenades', 'ammo', 'explosives', 'attachments',
+  'tools', 'clothing', 'armor inserts', 'shields', 'diving', 'horse armor',
+  'medical', 'food', 'electrical', 'deployables', 'modular car parts', 'boat parts', 'fun', 'misc'
 ];
 
 const CATEGORY_LABELS = {
-  'resources':        'Resources',
-  'components':       'Components',
-  'weapons':          'Weapons',
-  'ammo':             'Ammo',
-  'explosives':       'Explosives',
-  'attachments':      'Attachments',
-  'tools':            'Tools',
-  'clothing':         'Clothing',
-  'medical':          'Medical',
-  'food':             'Food',
-  'electrical':       'Electrical',
-  'deployables':      'Deployables',
-  'modular car parts':'Modular Car Parts',
-  'fun':              'Fun',
-  'misc':             'Misc',
+  'resources':         'Resources',
+  'components':        'Components',
+  'keycards':          'Keycards & Fuses',
+  'weapons':           'Weapons',
+  'grenades':          'Grenades',
+  'ammo':              'Ammo',
+  'explosives':        'Explosives',
+  'attachments':       'Attachments',
+  'tools':             'Tools',
+  'clothing':          'Clothing',
+  'armor inserts':     'Armor Inserts',
+  'shields':           'Shields',
+  'diving':            'Diving Equipment',
+  'horse armor':       'Horse Armor',
+  'medical':           'Medical',
+  'food':              'Food',
+  'electrical':        'Electrical',
+  'deployables':       'Deployables',
+  'modular car parts': 'Modular Car Parts',
+  'boat parts':        'Boat Parts',
+  'fun':               'Fun',
+  'misc':              'Misc',
 };
 
 // ── Category definitions ───────────────────────────────────────────────────────
@@ -30,44 +37,52 @@ const _defs = {
     'bone.fragments','charcoal','cloth','coal','crude.oil','diesel_barrel',
     'fat.animal','fertilizer','gunpowder','hq.metal.ore','leather','lowgradefuel',
     'metal.fragments','metal.ore','metal.refined','paper','plantfiber',
-    'rope','scrap','sheetmetal','sticks','stones','sulfur','sulfur.ore',
+    'rope','scrap','sticks','stones','sulfur','sulfur.ore',
     'tarp','wood','explosives',
   ],
 
   components: [
-    'bleach','cctv.camera','ducttape','electricfuse','fuse','gears','glue',
+    'bleach','cctv.camera','ducttape','gears','glue',
     'metalblade','metalpipe','metalspring','propanetank','riflebody','roadsigns',
-    'semibody','sewingkit','smgbody','targeting.computer','techparts',
+    'semibody','sewingkit','sheetmetal','smgbody','targeting.computer','techparts',
+    'blueprintbase',
   ],
 
+  // Keycards + fuses grouped together (access items)
+  keycards: [
+    'keycard_blue','keycard_green','keycard_red',
+    'electricfuse','fuse',
+  ],
+
+  // Ranged weapons, siege weapons, turrets — melee moved to tools, grenades moved to grenades
   weapons: [
     '50cal.mounted','50cal.mounted.left','50cal.mounted.right',
-    'axe.salvaged','ballista.mounted','ballista.static','batteringram',
-    'blowpipe','blunderbuss','bone.club','boomerang',
-    'bow.compound','bow.hunting','candycaneclub','cannon','catapult',
-    'concretehatchet','concretepickaxe','crossbow','flamethrower','flameturret',
-    'gun.water','hatchet','hmlmg','homingmissile.launcher',
-    'knife.bone','knife.bone.obsidian','knife.butcher','knife.combat','knife.skinning',
-    'krieg.chainsword','krieg.shotgun','legacy bow','lmg.m249',
-    'longsword','mace','mace.baseballbat','machete',
+    'ballista.mounted','ballista.static','batteringram',
+    'blowpipe','blunderbuss',
+    'bow.compound','bow.hunting','cannon','catapult',
+    'crossbow','flamethrower','flameturret',
+    'gun.water','hmlmg','homingmissile.launcher',
+    'krieg.shotgun','legacy bow','lmg.m249',
     'minigun','minicrossbow','multiplegrenadelauncher',
-    'paintballgun','pickaxe','pistol.eoka','pistol.m92','pistol.nailgun',
+    'paintballgun',
+    'pistol.eoka','pistol.m92','pistol.nailgun',
     'pistol.prototype17','pistol.python','pistol.revolver','pistol.semiauto',
-    'pistol.semiauto.a.m15','pistol.water','reinforced.wooden.shield',
-    'revolver.hc','rifle.ak','rifle.ak.diver','rifle.ak.ice','rifle.ak.jungle',
+    'pistol.semiauto.a.m15','pistol.water',
+    'revolver.hc',
+    'rifle.ak','rifle.ak.diver','rifle.ak.ice','rifle.ak.jungle',
     'rifle.ak.med','rifle.bolt','rifle.l96','rifle.lr300','rifle.lr300.space',
-    'rifle.m39','rifle.semiauto','rifle.sks','rocket.launcher',
-    'rocket.launcher.dragon','rocket.launcher.rpg7',
-    'salvaged.cleaver','salvaged.sword','shotgun.double','shotgun.m4',
-    'shotgun.pump','shotgun.spas12','shotgun.waterpipe','siegetower',
-    'smg.2','smg.mp5','smg.thompson','snowballgun','spear.cny',
-    'spear.stone','spear.wooden','speargun','stone.pickaxe','stonehatchet',
-    't1_smg','vampire.stake',
-    // melee from tools that are also used as weapons
-    'diverhatchet','diverpickaxe','icepick.salvaged','lumberjack.hatchet',
-    'lumberjack.pickaxe','pitchfork',
-    // held shields
-    'improvised.shield','metal.shield','wooden.shield',
+    'rifle.m39','rifle.semiauto','rifle.sks',
+    'rocket.launcher','rocket.launcher.dragon','rocket.launcher.rpg7',
+    'shotgun.double','shotgun.m4','shotgun.pump','shotgun.spas12','shotgun.waterpipe',
+    'siegetower',
+    'smg.2','smg.mp5','smg.thompson',
+    'snowballgun','speargun','t1_smg',
+  ],
+
+  // Thrown grenades — explosive ones also appear in explosives
+  grenades: [
+    'grenade.beancan','grenade.bee','grenade.f1',
+    'grenade.flashbang','grenade.molotov','grenade.smoke',
   ],
 
   ammo: [
@@ -84,12 +99,10 @@ const _defs = {
     'cannonball','catapult.ammo.bee','catapult.ammo.boulder',
     'catapult.ammo.explosive','catapult.ammo.incendiary',
     'dart.incapacitate','dart.radiation','dart.scatter','dart.wood',
-    'grenade.beancan','grenade.bee','grenade.f1',
-    'grenade.flashbang','grenade.molotov','grenade.smoke',
     'snowball','speargun.spear','submarine.torpedo.straight',
   ],
 
-  // Items that also appear in ammo are listed in both
+  // Items that also appear in ammo or grenades are listed in both
   explosives: [
     'ammo.grenadelauncher.he',
     'ammo.rifle.explosive',
@@ -104,8 +117,6 @@ const _defs = {
 
   attachments: [
     'aiming.module.mlrs',
-    'clothing.mod.armorinsert_asbestos','clothing.mod.armorinsert_lead',
-    'clothing.mod.armorinsert_metal','clothing.mod.armorinsert_wood',
     'weapon.mod.8x.scope','weapon.mod.burstmodule','weapon.mod.extendedmags',
     'weapon.mod.flashlight','weapon.mod.gascompressionovedrive',
     'weapon.mod.holosight','weapon.mod.lasersight','weapon.mod.muzzleboost',
@@ -114,18 +125,26 @@ const _defs = {
     'weapon.mod.targetingattachment',
   ],
 
+  // Hand tools, harvesting tools, and all melee weapons
   tools: [
-    'axe.salvaged','boat.planner','building.planner','chainsaw',
+    'axe.salvaged','building.planner','chainsaw',
     'concretehatchet','concretepickaxe','diverhatchet','diverpickaxe','divertorch',
     'fishing.tackle','fishingrod.handmade','flashlight.held',
     'frontier_hatchet','geiger.counter','hammer','hammer.salvaged',
     'hatchet','hosetool','icepick.salvaged','jackhammer',
     'knife.skinning','lumberjack.hatchet','lumberjack.pickaxe',
     'map','metal.detector','minihelicopter.repair',
-    'paddle','pickaxe','pipetool','pitchfork','rock',
+    'pickaxe','pipetool','pitchfork','rock',
     'shovel','sickle','stone.pickaxe','stonehatchet',
     'tool.binoculars','tool.camera','tool.instant_camera','toolgun',
     'torch','wallpaper.tool','wiretool',
+    // Melee weapons
+    'bone.club','boomerang','candycaneclub',
+    'knife.bone','knife.bone.obsidian','knife.butcher','knife.combat',
+    'krieg.chainsword','longsword','mace','mace.baseballbat','machete',
+    'salvaged.cleaver','salvaged.sword',
+    'spear.cny','spear.stone','spear.wooden',
+    'vampire.stake',
   ],
 
   clothing: [
@@ -140,7 +159,6 @@ const _defs = {
     'cocoknight.armor.gloves','cocoknight.armor.helmet',
     'cocoknight.armor.pants','cocoknight.armor.torso',
     'coffeecan.helmet','compass','cratecostume','deer.skull.mask',
-    'diving.fins','diving.mask','diving.tank','diving.tank.double','diving.wetsuit',
     'draculacape','draculamask',
     'frankensteins.monster.01.head','frankensteins.monster.01.legs','frankensteins.monster.01.torso',
     'frankensteins.monster.02.head','frankensteins.monster.02.legs','frankensteins.monster.02.torso',
@@ -159,10 +177,9 @@ const _defs = {
     'hazmatsuit_scientist_nvgm','hazmatsuit_scientist_peacekeeper',
     'hazmatsuittwitch','hazmatyoutooz',
     'heavy.plate.helmet','heavy.plate.jacket','heavy.plate.pants',
-    'hoodie','horse.armor.lny26','horse.armor.roadsign','horse.armor.wood',
+    'hoodie',
     'horse.costume','horse.saddle','horse.saddle.double','horse.saddle.single',
     'horse.saddlebag','horse.shoes.advanced','horse.shoes.basic',
-    'improvised.shield',
     'jacket','jacket.snow',
     'jumpsuit.suit','jumpsuit.suit.blue','jumpsuit.waterwellnpc',
     'knightsarmour.helmet','knightsarmour.skirt','knighttorso.armour',
@@ -170,11 +187,11 @@ const _defs = {
     'lumberjack hoodie',
     'mask.balaclava','mask.bandana',
     'metal.facemask','metal.facemask.hockey','metal.facemask.icemask',
-    'metal.plate.torso','metal.plate.torso.icevest','metal.shield',
+    'metal.plate.torso','metal.plate.torso.icevest',
     'mummymask','nightvisiongoggles',
     'oubreak_scientist','outbreak.sprayer',
     'paintballoveralls.suit','pants','pants.shorts','parachute','parachute.deployed',
-    'partyhat','reinforced.wooden.shield','riot.helmet',
+    'partyhat','riot.helmet',
     'roadsign.gloves','roadsign.jacket','roadsign.kilt',
     'santabeard','santahat','scarecrow.suit','scarecrowhead',
     'scientistsuit_heavy','shirt.collared','shirt.tanktop','shoes.boots',
@@ -184,7 +201,23 @@ const _defs = {
     'tactical.gloves','torch.torch.skull','tshirt','tshirt.long',
     'twitchsunglasses','twitch.headset',
     'wood.armor.helmet','wood.armor.jacket','wood.armor.pants','woodarmor.gloves',
-    'wooden.shield',
+  ],
+
+  'armor inserts': [
+    'clothing.mod.armorinsert_asbestos','clothing.mod.armorinsert_lead',
+    'clothing.mod.armorinsert_metal','clothing.mod.armorinsert_wood',
+  ],
+
+  shields: [
+    'improvised.shield','metal.shield','reinforced.wooden.shield','wooden.shield',
+  ],
+
+  diving: [
+    'diving.fins','diving.mask','diving.tank','diving.tank.double','diving.wetsuit',
+  ],
+
+  'horse armor': [
+    'horse.armor.lny26','horse.armor.roadsign','horse.armor.wood',
   ],
 
   medical: [
@@ -295,7 +328,7 @@ const _defs = {
     'huntingtrophylarge','huntingtrophysmall',
     'jackolantern.angry','jackolantern.happy',
     'krieg.storage.horizontal','krieg.storage.vertical',
-    'ladder.wooden.boat','ladder.wooden.wall','lantern',
+    'ladder.wooden.wall','lantern',
     'legacy.shelter.wood','legacyfurnace',
     'lock.code','lock.code.a.pilot','lock.key','locker',
     'mailbox','mannequin','medieval.box.wooden.large',
@@ -350,7 +383,7 @@ const _defs = {
     'crankshaft1','crankshaft2','crankshaft3',
     'piston1','piston2','piston3',
     'smallengine','sparkplug1','sparkplug2','sparkplug3',
-    'steeringwheel.boat','valve1','valve2','valve3',
+    'valve1','valve2','valve3',
     'vehicle.1mod.cockpit','vehicle.1mod.cockpit.armored',
     'vehicle.1mod.cockpit.with.engine','vehicle.1mod.engine',
     'vehicle.1mod.flatbed','vehicle.1mod.passengers.armored',
@@ -360,6 +393,10 @@ const _defs = {
     'vehicle.car_radio','vehicle.chassis',
     'vehicle.chassis.2mod','vehicle.chassis.3mod','vehicle.chassis.4mod',
     'vehicle.module',
+  ],
+
+  'boat parts': [
+    'boat.planner','paddle','steeringwheel.boat','ladder.wooden.boat',
   ],
 
   fun: [
