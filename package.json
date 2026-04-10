@@ -5,8 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js",
-    "postinstall": "sed -i 's/required bool itemIsBlueprint/optional bool itemIsBlueprint/g' node_modules/@liamcottle/rustplus.js/rust.proto"
+    "dev": "node --watch server.js"
   },
   "dependencies": {
     "@liamcottle/rustplus.js": "^2.5.0",
