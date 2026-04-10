@@ -117,7 +117,7 @@ function renderGroupDropdown(groups) {
   const query = document.getElementById('pairGroupInput').value.toLowerCase();
   const filtered = groups.filter(g => g.toLowerCase().includes(query));
   dropdown.innerHTML = filtered.length
-    ? filtered.map(g => `<div class="group-dropdown-item" onmousedown='selectGroup(${JSON.stringify(g)})'>${escHtml(g)}</div>`).join('')
+    ? filtered.map(g => `<div class="group-dropdown-item" onmousedown="event.preventDefault()" onclick='selectGroup(${JSON.stringify(g)})'>${escHtml(g)}</div>`).join('')
     : (groups.length ? '<div class="group-dropdown-empty">No matches</div>' : '<div class="group-dropdown-empty">No existing groups</div>');
 }
 
