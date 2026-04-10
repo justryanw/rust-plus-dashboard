@@ -24,6 +24,10 @@ buildNpmPackage {
 
     cp -r . $out/lib/rust-storage-dashboard/
 
+    # Patch itemIsBlueprint to optional — Rust+ doesn't always include it
+    sed -i 's/required bool itemIsBlueprint/optional bool itemIsBlueprint/g' \
+      $out/lib/rust-storage-dashboard/node_modules/@liamcottle/rustplus.js/rust.proto
+
     makeWrapper ${lib.getExe nodejs} $out/bin/rust-storage-dashboard \
       --add-flags "$out/lib/rust-storage-dashboard/server.js"
 

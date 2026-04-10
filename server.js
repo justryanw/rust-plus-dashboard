@@ -267,9 +267,10 @@ async function refreshAllEntities() {
         }
     });
 
-    // If every entity timed out, the underlying connection is dead
+    // If every entity timed out, ping to confirm the connection is actually dead
+    // (a single bad entity response can cause timeouts without a real disconnect)
     if (failures === entityIds.length) {
-        markConnectionLost();
+        try { await pingServer(); } catch (_) { markConnectionLost(); }
         return;
     }
 
