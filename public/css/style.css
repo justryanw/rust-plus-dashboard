@@ -178,6 +178,8 @@ textarea { min-height: 70px; resize: vertical; }
 .view-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 
 /* ── Inventory grid ── */
+.category-section { margin-bottom: 28px; }
+.category-header { font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
 .inventory-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));

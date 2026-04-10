@@ -347,22 +347,36 @@ function renderInventory() {
     return;
   }
 
+  const grouped = {};
+  for (const item of items) {
+    for (const cat of getItemCategories(item.shortname)) {
+      if (!grouped[cat]) grouped[cat] = [];
+      grouped[cat].push(item);
+    }
+  }
+  const cats = CATEGORY_ORDER.filter(c => grouped[c]?.length);
+
   if (currentView === 'grid') {
-    container.innerHTML = `<div class="inventory-grid">${items.map(itemCardHTML).join('')}</div>`;
+    container.innerHTML = cats.map(cat => `
+      <div class="category-section">
+        <div class="category-header">${CATEGORY_LABELS[cat]}</div>
+        <div class="inventory-grid">${grouped[cat].map(itemCardHTML).join('')}</div>
+      </div>`).join('');
   } else {
-    container.innerHTML = `
-      <div class="table-wrap">
-        <table class="inventory-table">
-          <thead>
-            <tr>
+    container.innerHTML = cats.map(cat => `
+      <div class="category-section">
+        <div class="category-header">${CATEGORY_LABELS[cat]}</div>
+        <div class="table-wrap">
+          <table class="inventory-table">
+            <thead><tr>
               <th onclick="cycleSortTable('name')">Item <span class="sort-arrow" id="th-name"></span></th>
               <th onclick="cycleSortTable('qty-desc')">Quantity <span class="sort-arrow" id="th-qty">↓</span></th>
               <th>Monitors</th>
-            </tr>
-          </thead>
-          <tbody>${items.map(tableRowHTML).join('')}</tbody>
-        </table>
-      </div>`;
+            </tr></thead>
+            <tbody>${grouped[cat].map(tableRowHTML).join('')}</tbody>
+          </table>
+        </div>
+      </div>`).join('');
   }
 }
 
