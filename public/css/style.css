@@ -409,6 +409,11 @@ textarea { min-height: 70px; resize: vertical; }
 .group-name { font-weight: 700; font-size: 0.9rem; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .group-edit-btn { opacity: 0; background: none; border: none; cursor: pointer; font-size: 0.9rem; padding: 3px 5px; border-radius: 4px; line-height: 1; }
 .group-edit-btn:hover { background: rgba(232,98,42,0.15); }
+.group-visibility-btn { opacity: 0; background: none; border: none; cursor: pointer; font-size: 0.9rem; padding: 3px 5px; border-radius: 4px; line-height: 1; color: var(--accent); transition: opacity 0.15s; }
+.group-visibility-btn--hidden { opacity: 1 !important; color: var(--text-muted); }
+.group-visibility-btn:hover { background: rgba(108,147,232,0.15); }
+.group-header:hover .group-visibility-btn { opacity: 1; }
+.group-card--hidden { opacity: 0.5; }
 
 /* ── Group combobox ── */
 .group-combobox { position: relative; display: flex; align-items: stretch; gap: 0; margin-bottom: 16px; }

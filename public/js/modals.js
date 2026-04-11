@@ -286,10 +286,14 @@ function showGroupModal(groupName) {
       </div>`;
   }).join('');
 
+  const _hidden = isGroupHidden(groupName);
   document.getElementById('groupDetailContent').innerHTML = `
-    <div style="margin-bottom:12px">
-      <h2 style="margin-bottom:4px">${escHtml(groupName)}</h2>
-      <span style="font-size:0.78rem;color:var(--text-muted)">${members.length} monitor${members.length !== 1 ? 's' : ''} · ${totalUsed}/${totalCap} slots (${pct}%)</span>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px">
+      <div>
+        <h2 style="margin-bottom:4px">${escHtml(groupName)}</h2>
+        <span style="font-size:0.78rem;color:var(--text-muted)">${members.length} monitor${members.length !== 1 ? 's' : ''} · ${totalUsed}/${totalCap} slots (${pct}%)</span>
+      </div>
+      <button class="group-visibility-btn${_hidden ? ' group-visibility-btn--hidden' : ''}" data-group="${escHtml(groupName)}" onclick="toggleGroupVisibility(this.dataset.group);showGroupModal(this.dataset.group)" title="${_hidden ? 'Show in inventory' : 'Hide from inventory'}" style="margin-top:4px;font-size:1rem;flex-shrink:0">◉</button>
     </div>
     ${totalCap ? `<div class="capacity-bar" style="margin-bottom:16px"><div class="capacity-fill" style="width:${pct}%"></div></div>` : ''}
     <div style="font-size:0.75rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">All Items</div>

@@ -1,3 +1,39 @@
+// ── Hidden groups ─────────────────────────────────────────────────────────────
+const _hiddenGroups = new Set(JSON.parse(localStorage.getItem('hiddenGroups') || '[]'));
+
+function toggleGroupVisibility(name) {
+  if (_hiddenGroups.has(name)) _hiddenGroups.delete(name);
+  else _hiddenGroups.add(name);
+  localStorage.setItem('hiddenGroups', JSON.stringify([..._hiddenGroups]));
+  renderInventory();
+  renderGroups();
+}
+
+function isGroupHidden(name) {
+  return _hiddenGroups.has(name);
+}
+
+function getVisibleInventory() {
+  if (_hiddenGroups.size === 0) return state.inventory;
+  const entityGroups = (state.config || {}).entityGroups || {};
+  const monitors = state.monitors || {};
+  const result = {};
+  for (const [key, item] of Object.entries(state.inventory || {})) {
+    let visibleQty = 0;
+    const visibleSources = [];
+    for (const sourceId of (item.sources || [])) {
+      const groupName = entityGroups[String(sourceId)];
+      if (groupName && _hiddenGroups.has(groupName)) continue;
+      const m = monitors[sourceId];
+      const qty = (m?.items || []).filter(i => i.itemId === item.itemId).reduce((s, i) => s + i.quantity, 0);
+      visibleQty += qty;
+      visibleSources.push(sourceId);
+    }
+    if (visibleQty > 0) result[key] = { ...item, quantity: visibleQty, sources: visibleSources };
+  }
+  return result;
+}
+
 // ── Utilities ─────────────────────────────────────────────────────────────────
 function fmt(n) {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
@@ -281,7 +317,7 @@ function renderStats() {
 function getSortedItems() {
   const query = document.getElementById('searchInput').value.toLowerCase();
   const sort = document.getElementById('sortSelect').value;
-  let items = Object.values(state.inventory || {});
+  let items = Object.values(getVisibleInventory());
 
   if (query) items = items.filter(i => i.name.toLowerCase().includes(query) || String(i.itemId).includes(query));
 
@@ -459,11 +495,13 @@ function renderGroups() {
           <span class="monitor-item-name">${escHtml(getItemName(item.itemId))}</span>
           <span class="monitor-item-qty">${item.quantity.toLocaleString()}</span>
         </div>`).join('') : '';
+    const hidden = isGroupHidden(groupName);
     const html = `
-      <div class="group-card" id="${gid}" data-group="${escHtml(groupName)}" onclick="showGroupModal(this.dataset.group)">
+      <div class="group-card${hidden ? ' group-card--hidden' : ''}" id="${gid}" data-group="${escHtml(groupName)}" onclick="showGroupModal(this.dataset.group)">
         <div class="group-header">
           <div class="group-header-top">
             <span class="group-name">${escHtml(groupName)}</span>
+            <button class="group-visibility-btn${hidden ? ' group-visibility-btn--hidden' : ''}" data-group="${escHtml(groupName)}" onclick="event.stopPropagation();toggleGroupVisibility(this.dataset.group)" title="${hidden ? 'Show in inventory' : 'Hide from inventory'}">◉</button>
             <button class="group-edit-btn" data-group="${escHtml(groupName)}" onclick="event.stopPropagation();showRenameGroupModal(this.dataset.group)" title="Rename group">✏️</button>
           </div>
           <div class="group-header-meta">
