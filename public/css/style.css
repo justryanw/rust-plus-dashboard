@@ -414,6 +414,7 @@ textarea { min-height: 70px; resize: vertical; }
 .group-visibility-btn:hover { background: rgba(108,147,232,0.15); }
 .group-header:hover .group-visibility-btn { opacity: 1; }
 .group-card--hidden { opacity: 0.5; }
+.monitor-group-label { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); padding: 4px 0 6px; margin-top: 8px; }
 
 /* ── Group combobox ── */
 .group-combobox { position: relative; display: flex; align-items: stretch; gap: 0; margin-bottom: 16px; }

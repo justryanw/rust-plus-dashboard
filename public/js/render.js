@@ -552,9 +552,48 @@ function renderUngrouped() {
 }
 
 function renderMonitors() {
+  const section = document.getElementById('monitorsSection');
+  const container = document.getElementById('monitorsGrid');
+  if (state.status !== 'connected') { section.style.display = 'none'; return; }
+
   const entityGroups = (state.config || {}).entityGroups || {};
   const all = Object.values(state.monitors || {}).filter(m => entityGroups[m.entityId]);
-  renderSection('monitorsSection', 'monitorsGrid', filteredMonitors(all), all);
+  const filtered = filteredMonitors(all);
+  if (all.length === 0 || filtered.length === 0) { section.style.display = 'none'; return; }
+  section.style.display = '';
+
+  const query = document.getElementById('searchInput').value.toLowerCase().trim();
+
+  // Group by group name
+  const byGroup = {};
+  for (const m of filtered) {
+    const g = entityGroups[m.entityId];
+    if (!byGroup[g]) byGroup[g] = [];
+    byGroup[g].push(m);
+  }
+  const groupNames = Object.keys(byGroup).sort();
+
+  // Sync group wrapper divs
+  const neededGids = new Set(groupNames.map(g => `mg-${btoa(g).replace(/[^a-zA-Z0-9]/g, '')}`));
+  [...container.children].forEach(el => { if (!neededGids.has(el.dataset.gid)) el.remove(); });
+
+  groupNames.forEach((groupName, i) => {
+    const gid = `mg-${btoa(groupName).replace(/[^a-zA-Z0-9]/g, '')}`;
+    let wrapper = container.querySelector(`[data-gid="${gid}"]`);
+    if (!wrapper) {
+      wrapper = document.createElement('div');
+      wrapper.dataset.gid = gid;
+      wrapper.innerHTML = `<div class="monitor-group-label"></div><div class="monitors-grid"></div>`;
+      container.appendChild(wrapper);
+    }
+    wrapper.querySelector('.monitor-group-label').textContent = groupName;
+    if (container.children[i] !== wrapper) container.insertBefore(wrapper, container.children[i] || null);
+
+    updateGrid(wrapper.querySelector('.monitors-grid'), byGroup[groupName].map(m => {
+      const cardId = `mg-${m.entityId}`;
+      return { id: cardId, html: monitorCardHTML(m, query, cardId) };
+    }));
+  });
 }
 
 // ── UI helpers ────────────────────────────────────────────────────────────────
