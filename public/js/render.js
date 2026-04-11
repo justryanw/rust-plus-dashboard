@@ -157,13 +157,6 @@ function monitorCardHTML(m, query = '', cardId = `mc-${m.entityId}`) {
     : m.error
     ? `<span class="monitor-error">⚠ ${escHtml(m.error)}</span>`
     : `<span class="monitor-capacity">${usedSlots}/${cap} slots (${pct}%)</span>`;
-  const now = Math.floor(Date.now() / 1000);
-  const tcBadge = m.hasProtection && m.protectionExpiry > 0
-    ? (() => {
-        const rem = m.protectionExpiry - now;
-        return `<span class="tc-badge" style="color:${upkeepColor(rem)}" title="TC upkeep: ${fmtDuration(rem)}">⚑ ${fmtDuration(rem)}</span>`;
-      })()
-    : (m.error || isUnpowered || isRemoved) ? '' : `<span class="tc-badge tc-badge--none" title="No TC protection">⚑ No TC</span>`;
   const mergedItems = {};
   for (const item of (m.items || [])) {
     const key = String(item.itemId);
@@ -190,7 +183,6 @@ function monitorCardHTML(m, query = '', cardId = `mc-${m.entityId}`) {
         <div class="monitor-header-meta">
           ${groupName ? `<span class="monitor-group-tag">${escHtml(groupName)}</span>` : ''}
           ${statusBadge}
-          ${tcBadge}
         </div>
       </div>
       ${query && !m.error && !isUnpowered && cap ? `<div class="capacity-bar-wrap"><div class="capacity-bar"><div class="capacity-fill" style="width:${pct}%"></div></div></div>` : ''}
