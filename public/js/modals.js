@@ -226,6 +226,14 @@ function showMonitorModal(entityId, fromGroup = null) {
       <span class="monitor-item-name">${escHtml(getItemName(item.itemId))}</span>
       <span class="monitor-item-qty">${item.quantity.toLocaleString()}</span>
     </div>`).join('');
+  const now = Math.floor(Date.now() / 1000);
+  const tcBadge = m.hasProtection && m.protectionExpiry > 0
+    ? (() => {
+        const rem = m.protectionExpiry - now;
+        const expDate = new Date(m.protectionExpiry * 1000);
+        return `<span class="tc-badge" style="color:${upkeepColor(rem)}" title="Expires ${expDate.toLocaleDateString()} ${expDate.toLocaleTimeString()}">⚑ TC ${fmtDuration(rem)}</span>`;
+      })()
+    : (!isRemoved && !isUnpowered && !m.error) ? `<span class="tc-badge tc-badge--none">⚑ No TC</span>` : '';
   document.getElementById('monitorDetailContent').innerHTML = `
     ${fromGroup ? `<button class="modal-back-btn" onclick="closeMonitorModal();showGroupModal(this.dataset.group)" data-group="${escHtml(fromGroup)}">← ${escHtml(fromGroup)}</button>` : ''}
     <div style="margin-bottom:12px">
@@ -233,6 +241,7 @@ function showMonitorModal(entityId, fromGroup = null) {
       <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
         ${groupName ? `<span class="monitor-group-tag">${escHtml(groupName)}</span>` : ''}
         ${statusBadge}
+        ${tcBadge}
       </div>
     </div>
     ${!m.error && !isUnpowered && cap ? `<div class="capacity-bar" style="margin-bottom:12px"><div class="capacity-fill" style="width:${pct}%"></div></div>` : ''}

@@ -41,6 +41,23 @@ function fmt(n) {
   return n.toLocaleString();
 }
 
+function fmtDuration(seconds) {
+  if (seconds <= 0) return 'Expired';
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor((seconds % 86400) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+function upkeepColor(seconds) {
+  if (seconds <= 0) return 'var(--red)';
+  if (seconds < 3600) return 'var(--red)';
+  if (seconds < 86400) return 'var(--yellow)';
+  return 'var(--green)';
+}
+
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
@@ -140,6 +157,13 @@ function monitorCardHTML(m, query = '', cardId = `mc-${m.entityId}`) {
     : m.error
     ? `<span class="monitor-error">⚠ ${escHtml(m.error)}</span>`
     : `<span class="monitor-capacity">${usedSlots}/${cap} slots (${pct}%)</span>`;
+  const now = Math.floor(Date.now() / 1000);
+  const tcBadge = m.hasProtection && m.protectionExpiry > 0
+    ? (() => {
+        const rem = m.protectionExpiry - now;
+        return `<span class="tc-badge" style="color:${upkeepColor(rem)}" title="TC upkeep: ${fmtDuration(rem)}">⚑ ${fmtDuration(rem)}</span>`;
+      })()
+    : (m.error || isUnpowered || isRemoved) ? '' : `<span class="tc-badge tc-badge--none" title="No TC protection">⚑ No TC</span>`;
   const mergedItems = {};
   for (const item of (m.items || [])) {
     const key = String(item.itemId);
@@ -166,6 +190,7 @@ function monitorCardHTML(m, query = '', cardId = `mc-${m.entityId}`) {
         <div class="monitor-header-meta">
           ${groupName ? `<span class="monitor-group-tag">${escHtml(groupName)}</span>` : ''}
           ${statusBadge}
+          ${tcBadge}
         </div>
       </div>
       ${query && !m.error && !isUnpowered && cap ? `<div class="capacity-bar-wrap"><div class="capacity-bar"><div class="capacity-fill" style="width:${pct}%"></div></div></div>` : ''}
@@ -312,6 +337,24 @@ function renderStats() {
     document.getElementById('statTime').textContent = d.toLocaleTimeString();
     document.getElementById('statDate').textContent = d.toLocaleDateString();
     document.getElementById('lastUpdateLabel').textContent = `Updated ${d.toLocaleTimeString()}`;
+  }
+
+  // Upkeep card — find the earliest protectionExpiry across all monitors
+  const now = Math.floor(Date.now() / 1000);
+  const expiries = Object.values(state.monitors || {})
+    .filter(m => m.hasProtection && m.protectionExpiry > 0)
+    .map(m => m.protectionExpiry);
+  const upkeepCard = document.getElementById('statUpkeepCard');
+  if (expiries.length > 0) {
+    const minExpiry = Math.min(...expiries);
+    const remaining = minExpiry - now;
+    document.getElementById('statUpkeepTime').textContent = fmtDuration(remaining);
+    document.getElementById('statUpkeepTime').style.color = upkeepColor(remaining);
+    const expDate = new Date(minExpiry * 1000);
+    document.getElementById('statUpkeepSub').textContent = `expires ${expDate.toLocaleDateString()} ${expDate.toLocaleTimeString()}`;
+    upkeepCard.style.display = '';
+  } else {
+    upkeepCard.style.display = 'none';
   }
 }
 

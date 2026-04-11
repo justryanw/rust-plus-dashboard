@@ -415,6 +415,8 @@ textarea { min-height: 70px; resize: vertical; }
 .group-header:hover .group-visibility-btn { opacity: 1; }
 .group-card--hidden { opacity: 0.5; }
 .monitor-group-label { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); padding: 4px 0 6px; margin-top: 8px; }
+.tc-badge { font-size: 0.7rem; font-weight: 600; padding: 1px 5px; border-radius: 4px; background: rgba(255,255,255,0.05); border: 1px solid currentColor; opacity: 0.85; white-space: nowrap; }
+.tc-badge--none { color: var(--red) !important; }
 
 /* ── Group combobox ── */
 .group-combobox { position: relative; display: flex; align-items: stretch; gap: 0; margin-bottom: 16px; }
