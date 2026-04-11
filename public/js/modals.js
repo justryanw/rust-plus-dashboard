@@ -1,3 +1,12 @@
+// ── Live modal refresh ────────────────────────────────────────────────────────
+let _activeModal = null;   // 'monitor' | 'group' | null
+let _activeModalArg = null;
+
+function refreshOpenModal() {
+  if (_activeModal === 'monitor') showMonitorModal(_activeModalArg._entityId, _activeModalArg._fromGroup);
+  else if (_activeModal === 'group') showGroupModal(_activeModalArg);
+}
+
 // ── Config modal ──────────────────────────────────────────────────────────────
 function openConfigModal() {
   document.getElementById('configModal').classList.add('show');
@@ -188,6 +197,8 @@ function dismissPairModal() {
 
 // ── Monitor detail modal ──────────────────────────────────────────────────────
 function showMonitorModal(entityId, fromGroup = null) {
+  _activeModal = 'monitor';
+  _activeModalArg = { _entityId: entityId, _fromGroup: fromGroup };
   const m = (state.monitors || {})[String(entityId)];
   if (!m) return;
   const usedSlots = (m.items || []).length;
@@ -232,11 +243,15 @@ function showMonitorModal(entityId, fromGroup = null) {
 }
 
 function closeMonitorModal() {
+  _activeModal = null;
+  _activeModalArg = null;
   document.getElementById('monitorDetailModal').classList.remove('show');
 }
 
 // ── Group detail modal ────────────────────────────────────────────────────────
 function showGroupModal(groupName) {
+  _activeModal = 'group';
+  _activeModalArg = groupName;
   const monitors = state.monitors || {};
   const entityGroups = (state.config || {}).entityGroups || {};
   const members = Object.entries(monitors)
@@ -306,6 +321,8 @@ function showGroupModal(groupName) {
 }
 
 function closeGroupModal() {
+  _activeModal = null;
+  _activeModalArg = null;
   document.getElementById('groupDetailModal').classList.remove('show');
 }
 

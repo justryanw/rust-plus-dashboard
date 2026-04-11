@@ -236,6 +236,7 @@ function render() {
   renderGroups();
   renderUngrouped();
   renderMonitors();
+  refreshOpenModal();
   checkNewUnlabeledMonitors();
 }
 
