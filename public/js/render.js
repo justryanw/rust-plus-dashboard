@@ -309,7 +309,12 @@ function renderStats() {
   const items = Object.values(inv);
   const uniqueCount = items.length;
   const totalQty = items.reduce((s, i) => s + i.quantity, 0);
-  const monitors = Object.values(state.monitors || {}).filter(m => !m.error && !m.unpowered);
+  const entityGroups = (state.config || {}).entityGroups || {};
+  const monitors = Object.values(state.monitors || {}).filter(m => {
+    if (m.error || m.unpowered) return false;
+    const groupName = entityGroups[String(m.entityId)];
+    return !groupName || !isGroupHidden(groupName);
+  });
   const monitorCount = Object.keys(state.monitors || {}).length;
   const usedSlots = monitors.reduce((s, m) => s + (m.items || []).length, 0);
   const totalSlots = monitors.reduce((s, m) => s + (m.capacity || 0), 0);

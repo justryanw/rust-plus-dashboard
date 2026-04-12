@@ -18,9 +18,15 @@ function closeConfigModal() {
 
 // ── Slots usage modal ─────────────────────────────────────────────────────────
 function showSlotsModal() {
-  // Count stacks (slots) per itemId across all monitors
+  // Count stacks (slots) per itemId across visible monitors
+  const entityGroups = (state.config || {}).entityGroups || {};
+  const visibleMonitors = Object.values(state.monitors || {}).filter(m => {
+    if (m.error || m.unpowered) return false;
+    const groupName = entityGroups[String(m.entityId)];
+    return !groupName || !isGroupHidden(groupName);
+  });
   const slotCounts = {};
-  for (const m of Object.values(state.monitors || {})) {
+  for (const m of visibleMonitors) {
     for (const item of (m.items || [])) {
       const key = String(item.itemId);
       slotCounts[key] = (slotCounts[key] || 0) + 1;
@@ -33,8 +39,7 @@ function showSlotsModal() {
     .sort((a, b) => b.slots - a.slots || b.quantity - a.quantity);
 
   const totalUsed = items.reduce((s, i) => s + i.slots, 0);
-  const monitors = Object.values(state.monitors || {}).filter(m => !m.error && !m.unpowered);
-  const totalSlots = monitors.reduce((s, m) => s + (m.capacity || 0), 0);
+  const totalSlots = visibleMonitors.reduce((s, m) => s + (m.capacity || 0), 0);
 
   document.getElementById('slotsModalSub').textContent =
     `${totalUsed} of ${totalSlots} slots used across ${items.length} item type${items.length !== 1 ? 's' : ''}`;
