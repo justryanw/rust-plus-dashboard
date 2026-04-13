@@ -1,5 +1,6 @@
 // ── Hidden groups ─────────────────────────────────────────────────────────────
 const _hiddenGroups = new Set(JSON.parse(localStorage.getItem('hiddenGroups') || '[]'));
+const _slotHiddenGroups = new Set(JSON.parse(localStorage.getItem('slotHiddenGroups') || '[]'));
 
 function toggleGroupVisibility(name) {
   if (_hiddenGroups.has(name)) _hiddenGroups.delete(name);
@@ -12,6 +13,18 @@ function toggleGroupVisibility(name) {
 
 function isGroupHidden(name) {
   return _hiddenGroups.has(name);
+}
+
+function toggleGroupSlotVisibility(name) {
+  if (_slotHiddenGroups.has(name)) _slotHiddenGroups.delete(name);
+  else _slotHiddenGroups.add(name);
+  localStorage.setItem('slotHiddenGroups', JSON.stringify([..._slotHiddenGroups]));
+  renderGroups();
+  renderStats();
+}
+
+function isGroupSlotHidden(name) {
+  return _slotHiddenGroups.has(name);
 }
 
 function getVisibleInventory() {
@@ -197,8 +210,6 @@ function monitorCardHTML(m, query = '', cardId = `mc-${m.entityId}`) {
       <div class="monitor-header">
         <div class="monitor-header-top">
           <span class="monitor-name">${escHtml(m.label || m.entityId)}</span>
-          <button class="monitor-edit" onclick="editMonitor(event,'${m.entityId}')" title="Edit monitor">✏️</button>
-          <button class="monitor-delete" onclick="removeMonitor(event,'${m.entityId}')" title="Remove monitor">🗑</button>
         </div>
         <div class="monitor-header-meta">
           ${groupName ? `<span class="monitor-group-tag">${escHtml(groupName)}</span>` : ''}
@@ -232,6 +243,8 @@ function updateGrid(grid, cards) {
         const tmp = document.createElement('div');
         tmp.innerHTML = card.html;
         const newEl = tmp.firstElementChild;
+        // Patch outer element class (e.g. hidden state)
+        if (el.className !== newEl.className) el.className = newEl.className;
         // Patch header for status badge / name changes
         const oldHeader = el.querySelector('.monitor-header, .group-header');
         const newHeader = newEl.querySelector('.monitor-header, .group-header');
@@ -272,7 +285,6 @@ function render() {
   renderStats();
   renderInventory();
   renderGroups();
-  renderUngrouped();
   renderMonitors();
   refreshOpenModal();
   checkNewUnlabeledMonitors();
@@ -334,7 +346,8 @@ function renderStats() {
   const monitors = Object.values(state.monitors || {}).filter(m => {
     if (m.error || m.unpowered) return false;
     const groupName = entityGroups[String(m.entityId)];
-    return !groupName || !isGroupHidden(groupName);
+    if (groupName && (isGroupHidden(groupName) || isGroupSlotHidden(groupName))) return false;
+    return true;
   });
   const monitorCount = Object.keys(state.monitors || {}).length;
   const usedSlots = monitors.reduce((s, m) => s + (m.items || []).length, 0);
@@ -562,8 +575,6 @@ function renderGroups() {
         <div class="group-header">
           <div class="group-header-top">
             <span class="group-name">${escHtml(groupName)}</span>
-            <button class="group-visibility-btn${hidden ? ' group-visibility-btn--hidden' : ''}" data-group="${escHtml(groupName)}" onclick="event.stopPropagation();toggleGroupVisibility(this.dataset.group)" title="${hidden ? 'Show in inventory' : 'Hide from inventory'}">◉</button>
-            <button class="group-edit-btn" data-group="${escHtml(groupName)}" onclick="event.stopPropagation();showRenameGroupModal(this.dataset.group)" title="Rename group">✏️</button>
           </div>
           <div class="group-header-meta">
             <span style="font-size:0.72rem;color:var(--text-muted)">${members.length} monitor${members.length !== 1 ? 's' : ''}</span>
@@ -579,85 +590,68 @@ function renderGroups() {
 }
 
 
-function renderSection(sectionId, gridId, entries, allEntries) {
-  const section = document.getElementById(sectionId);
-  const grid = document.getElementById(gridId);
-  if (allEntries.length === 0 || entries.length === 0 || state.status !== 'connected') { section.style.display = 'none'; return; }
-  section.style.display = '';
-  const query = document.getElementById('searchInput').value.toLowerCase().trim();
-  updateGrid(grid, entries.map(m => {
-    const cardId = `${gridId}-${m.entityId}`;
-    return { id: cardId, html: monitorCardHTML(m, query, cardId) };
-  }));
-}
 
 function onSearch() {
   renderInventory();
   renderGroups();
-  renderUngrouped();
   renderMonitors();
 }
 
 function filteredMonitors(monitors) {
   const query = document.getElementById('searchInput').value.toLowerCase().trim();
   if (!query) return monitors;
-  return monitors.filter(m => (m.items || []).some(i =>
-    getItemName(i.itemId).toLowerCase().includes(query) || String(i.itemId).includes(query)
-  ));
-}
-
-function renderUngrouped() {
-  const entityGroups = (state.config || {}).entityGroups || {};
-  const all = Object.values(state.monitors || {}).filter(m => !entityGroups[m.entityId]);
-  renderSection('ungroupedSection', 'ungroupedGrid', filteredMonitors(all), all);
+  return monitors.filter(m =>
+    (m.label || '').toLowerCase().includes(query) ||
+    String(m.entityId).includes(query) ||
+    (m.items || []).some(i =>
+      getItemName(i.itemId).toLowerCase().includes(query) || String(i.itemId).includes(query)
+    )
+  );
 }
 
 function renderMonitors() {
   const section = document.getElementById('monitorsSection');
-  const container = document.getElementById('monitorsGrid');
-  if (state.status !== 'connected') { section.style.display = 'none'; return; }
-
-  const entityGroups = (state.config || {}).entityGroups || {};
-  const all = Object.values(state.monitors || {}).filter(m => entityGroups[m.entityId]);
-  const filtered = filteredMonitors(all);
-  if (all.length === 0 || filtered.length === 0) { section.style.display = 'none'; return; }
-  section.style.display = '';
-
+  const grid = document.getElementById('monitorsGrid');
   const query = document.getElementById('searchInput').value.toLowerCase().trim();
 
-  // Group by group name
-  const byGroup = {};
-  for (const m of filtered) {
-    const g = entityGroups[m.entityId];
-    if (!byGroup[g]) byGroup[g] = [];
-    byGroup[g].push(m);
+  if (!query || state.status !== 'connected') {
+    section.style.display = 'none';
+    return;
   }
-  const groupNames = Object.keys(byGroup).sort();
 
-  // Sync group wrapper divs
-  const neededGids = new Set(groupNames.map(g => `mg-${btoa(g).replace(/[^a-zA-Z0-9]/g, '')}`));
-  [...container.children].forEach(el => { if (!neededGids.has(el.dataset.gid)) el.remove(); });
+  const entityGroups = (state.config || {}).entityGroups || {};
+  const all = Object.values(state.monitors || {});
+  const filtered = filteredMonitors(all);
+  if (filtered.length === 0) { section.style.display = 'none'; return; }
 
-  groupNames.forEach((groupName, i) => {
-    const gid = `mg-${btoa(groupName).replace(/[^a-zA-Z0-9]/g, '')}`;
-    let wrapper = container.querySelector(`[data-gid="${gid}"]`);
-    if (!wrapper) {
-      wrapper = document.createElement('div');
-      wrapper.dataset.gid = gid;
-      wrapper.innerHTML = `<div class="monitor-group-label"></div><div class="monitors-grid"></div>`;
-      container.appendChild(wrapper);
-    }
-    wrapper.querySelector('.monitor-group-label').textContent = groupName;
-    if (container.children[i] !== wrapper) container.insertBefore(wrapper, container.children[i] || null);
-
-    updateGrid(wrapper.querySelector('.monitors-grid'), byGroup[groupName].map(m => {
-      const cardId = `mg-${m.entityId}`;
-      return { id: cardId, html: monitorCardHTML(m, query, cardId) };
-    }));
+  // Sort by group name (ungrouped last), then by label
+  filtered.sort((a, b) => {
+    const ga = entityGroups[a.entityId] || '\uffff';
+    const gb = entityGroups[b.entityId] || '\uffff';
+    if (ga !== gb) return ga.localeCompare(gb);
+    return (a.label || '').localeCompare(b.label || '');
   });
+
+  section.style.display = '';
+  updateGrid(grid, filtered.map(m => {
+    const cardId = `ms-${m.entityId}`;
+    return { id: cardId, html: monitorCardHTML(m, query, cardId) };
+  }));
 }
 
 // ── UI helpers ────────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('tabItems').classList.toggle('active', tab === 'items');
+  document.getElementById('tabMonitors').classList.toggle('active', tab === 'monitors');
+  document.getElementById('tabContentItems').style.display = tab === 'items' ? '' : 'none';
+  document.getElementById('tabContentMonitors').style.display = tab === 'monitors' ? '' : 'none';
+  document.getElementById('sortSelect').style.display = tab === 'items' ? '' : 'none';
+  document.getElementById('viewToggle').style.display = tab === 'items' ? '' : 'none';
+  document.getElementById('searchInput').placeholder = tab === 'items' ? 'Search items…' : 'Search monitors…';
+  onSearch();
+}
+
 function setView(v) {
   currentView = v;
   document.getElementById('viewGrid').classList.toggle('active', v === 'grid');

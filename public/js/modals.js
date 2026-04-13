@@ -23,7 +23,8 @@ function showSlotsModal() {
   const visibleMonitors = Object.values(state.monitors || {}).filter(m => {
     if (m.error || m.unpowered) return false;
     const groupName = entityGroups[String(m.entityId)];
-    return !groupName || !isGroupHidden(groupName);
+    if (groupName && (isGroupHidden(groupName) || isGroupSlotHidden(groupName))) return false;
+    return true;
   });
   const slotCounts = {};
   for (const m of visibleMonitors) {
@@ -252,12 +253,18 @@ function showMonitorModal(entityId, fromGroup = null) {
 
   document.getElementById('monitorDetailContent').innerHTML = `
     ${fromGroup ? `<button class="modal-back-btn" onclick="closeMonitorModal();showGroupModal(this.dataset.group)" data-group="${escHtml(fromGroup)}">← ${escHtml(fromGroup)}</button>` : ''}
-    <div style="margin-bottom:12px">
-      <h2 style="margin-bottom:4px">${escHtml(m.label || m.entityId)}</h2>
-      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-        ${groupName ? `<span class="monitor-group-tag">${escHtml(groupName)}</span>` : ''}
-        ${statusBadge}
-        ${m.lastUpdated ? `<span class="monitor-updated" data-updated="${m.lastUpdated}">${timeAgo(m.lastUpdated)}</span>` : ''}
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px">
+      <div>
+        <h2 style="margin-bottom:4px">${escHtml(m.label || m.entityId)}</h2>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          ${groupName ? `<span class="monitor-group-tag">${escHtml(groupName)}</span>` : ''}
+          ${statusBadge}
+          ${m.lastUpdated ? `<span class="monitor-updated" data-updated="${m.lastUpdated}">${timeAgo(m.lastUpdated)}</span>` : ''}
+        </div>
+      </div>
+      <div style="display:flex;gap:4px;flex-shrink:0">
+        <button class="btn btn-icon" onclick="editMonitor(event,'${m.entityId}')" title="Rename monitor">✏️</button>
+        <button class="btn btn-icon btn-danger-icon" onclick="removeMonitor(event,'${m.entityId}');closeMonitorModal()" title="Delete monitor">🗑</button>
       </div>
     </div>
     ${!m.error && !isUnpowered && cap ? `<div class="capacity-bar" style="margin-bottom:12px"><div class="capacity-fill" style="width:${pct}%"></div></div>` : ''}
@@ -336,13 +343,26 @@ function showGroupModal(groupName) {
   }).join('');
 
   const _hidden = isGroupHidden(groupName);
+  const _slotHidden = isGroupSlotHidden(groupName);
   document.getElementById('groupDetailContent').innerHTML = `
     <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px">
       <div>
         <h2 style="margin-bottom:4px">${escHtml(groupName)}</h2>
         <span style="font-size:0.78rem;color:var(--text-muted)">${members.length} monitor${members.length !== 1 ? 's' : ''} · ${totalUsed}/${totalCap} slots (${pct}%)</span>
       </div>
-      <button class="group-visibility-btn${_hidden ? ' group-visibility-btn--hidden' : ''}" data-group="${escHtml(groupName)}" onclick="toggleGroupVisibility(this.dataset.group);showGroupModal(this.dataset.group)" title="${_hidden ? 'Show in inventory' : 'Hide from inventory'}" style="margin-top:4px;font-size:1rem;flex-shrink:0">◉</button>
+      <div style="display:flex;gap:4px;flex-shrink:0">
+        <button class="btn btn-icon" data-group="${escHtml(groupName)}" onclick="showRenameGroupModal(this.dataset.group)" title="Rename group">✏️</button>
+      </div>
+    </div>
+    <div class="modal-toggles">
+      <label class="modal-toggle" onclick="toggleGroupVisibility('${escHtml(groupName)}');showGroupModal('${escHtml(groupName)}')">
+        <span class="modal-toggle-indicator${_hidden ? '' : ' active'}"></span>
+        <span>Show in item list</span>
+      </label>
+      <label class="modal-toggle" onclick="toggleGroupSlotVisibility('${escHtml(groupName)}');showGroupModal('${escHtml(groupName)}')">
+        <span class="modal-toggle-indicator${_slotHidden ? '' : ' active'}"></span>
+        <span>Include in slot counts</span>
+      </label>
     </div>
     ${totalCap ? `<div class="capacity-bar" style="margin-bottom:16px"><div class="capacity-fill" style="width:${pct}%"></div></div>` : ''}
     <div style="font-size:0.75rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">All Items</div>

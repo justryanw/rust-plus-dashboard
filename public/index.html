@@ -65,44 +65,49 @@
     </div>
   </div>
 
-  <!-- Inventory controls -->
-  <div class="controls" id="controlsBar">
-    <div class="search-wrap">
-      <span class="search-icon">🔍</span>
-      <input id="searchInput" type="text" placeholder="Search items…" oninput="onSearch()" />
+  <!-- Tab bar -->
+  <div class="tab-bar" id="controlsBar">
+    <div class="tab-buttons">
+      <button class="tab-btn active" id="tabItems" onclick="switchTab('items')">Items</button>
+      <button class="tab-btn" id="tabMonitors" onclick="switchTab('monitors')">Monitors</button>
     </div>
-    <select class="sort-select" id="sortSelect" onchange="renderInventory()">
-      <option value="qty-desc">Quantity ↓</option>
-      <option value="qty-asc">Quantity ↑</option>
-      <option value="name-asc">Name A–Z</option>
-      <option value="name-desc">Name Z–A</option>
-    </select>
-    <div class="view-toggle">
-      <button class="view-btn active" id="viewGrid" onclick="setView('grid')" title="Grid view">⊞</button>
-      <button class="view-btn" id="viewTable" onclick="setView('table')" title="Table view">☰</button>
+    <div class="tab-controls">
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input id="searchInput" type="text" placeholder="Search items…" oninput="onSearch()" />
+      </div>
+      <select class="sort-select" id="sortSelect" onchange="renderInventory()">
+        <option value="qty-desc">Quantity ↓</option>
+        <option value="qty-asc">Quantity ↑</option>
+        <option value="name-asc">Name A–Z</option>
+        <option value="name-desc">Name Z–A</option>
+      </select>
+      <div class="view-toggle" id="viewToggle">
+        <button class="view-btn active" id="viewGrid" onclick="setView('grid')" title="Grid view">⊞</button>
+        <button class="view-btn" id="viewTable" onclick="setView('table')" title="Table view">☰</button>
+      </div>
+      <span class="last-update" id="lastUpdateLabel"></span>
     </div>
-    <span class="last-update" id="lastUpdateLabel"></span>
   </div>
 
-  <!-- Inventory display -->
-  <div id="inventoryContainer"></div>
-
-  <!-- Groups section -->
-  <div class="groups-section" id="groupsSection" style="display:none">
-    <h2>Groups</h2>
-    <div class="monitors-grid" id="groupsGrid"></div>
+  <!-- Items tab -->
+  <div id="tabContentItems">
+    <div id="inventoryContainer"></div>
   </div>
 
-  <!-- Ungrouped monitors section -->
-  <div class="monitors-section" id="ungroupedSection" style="display:none">
-    <h2>Ungrouped</h2>
-    <div class="monitors-grid" id="ungroupedGrid"></div>
-  </div>
+  <!-- Monitors tab -->
+  <div id="tabContentMonitors" style="display:none">
+    <!-- Groups section -->
+    <div class="groups-section" id="groupsSection" style="display:none">
+      <h2>Groups</h2>
+      <div class="monitors-grid" id="groupsGrid"></div>
+    </div>
 
-  <!-- Individual monitors section -->
-  <div class="monitors-section" id="monitorsSection" style="display:none">
-    <h2>Individual Monitors</h2>
-    <div id="monitorsGrid"></div>
+    <!-- Individual monitors (search results) -->
+    <div class="monitors-section" id="monitorsSection" style="display:none">
+      <h2>Monitors</h2>
+      <div class="monitors-grid" id="monitorsGrid"></div>
+    </div>
   </div>
 
 </div>
@@ -153,7 +158,7 @@
 <div class="modal-overlay" id="itemModal" onclick="if(event.target===this)closeItemModal()">
   <div class="modal" style="width:420px">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px">
-      <img id="itemModalIcon" src="" width="40" height="40" style="object-fit:contain;image-rendering:pixelated" onerror="this.style.display='none'" />
+      <img id="itemModalIcon" src="" width="40" height="40" style="object-fit:contain" onerror="this.style.display='none'" />
       <div>
         <h2 id="itemModalName" style="margin-bottom:2px"></h2>
         <p id="itemModalTotal" style="margin:0"></p>

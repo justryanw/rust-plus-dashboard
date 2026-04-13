@@ -12,3 +12,4 @@ let monitorQueue = [];
 let promptedIds = new Set();
 let monitorsInitialized = false;
 let hasBeenConnected = false;
+let currentTab = 'items';
