@@ -85,9 +85,14 @@ async function saveConfig() {
   if (res.success) closeConfigModal();
 }
 
-function exportEntityIds() {
-  const ids = (state.config || {}).entityIds || [];
-  const text = JSON.stringify(ids);
+function exportMonitors() {
+  const cfg = state.config || {};
+  const data = {
+    entityIds: cfg.entityIds || [],
+    entityLabels: cfg.entityLabels || {},
+    entityGroups: cfg.entityGroups || {},
+  };
+  const text = JSON.stringify(data, null, 2);
   const ta = document.createElement('textarea');
   ta.value = text;
   ta.style.position = 'fixed';
@@ -96,23 +101,30 @@ function exportEntityIds() {
   ta.select();
   document.execCommand('copy');
   document.body.removeChild(ta);
-  alert(`Copied ${ids.length} entity ID${ids.length !== 1 ? 's' : ''} to clipboard.`);
+  alert(`Copied ${(data.entityIds).length} monitor${data.entityIds.length !== 1 ? 's' : ''} to clipboard.`);
 }
 
-async function importEntityIds() {
-  const text = prompt('Paste entity IDs (JSON array):');
+async function importMonitors() {
+  const text = prompt('Paste exported monitor data (JSON):');
   if (!text) return;
   try {
-    const ids = JSON.parse(text);
-    if (!Array.isArray(ids) || !ids.every(id => Number.isInteger(Number(id)))) {
-      alert('Must be a JSON array of entity IDs.');
+    const data = JSON.parse(text);
+    if (!data.entityIds || !Array.isArray(data.entityIds)) {
+      alert('Invalid format — must contain an entityIds array.');
       return;
     }
-    const existing = (state.config || {}).entityIds || [];
-    const merged = [...new Set([...existing.map(String), ...ids.map(String)])];
-    const added = merged.length - existing.length;
-    await api('POST', '/api/config', { entityIds: merged.map(Number) });
-    alert(`Imported ${added} new entity ID${added !== 1 ? 's' : ''}.`);
+    const cfg = state.config || {};
+    const existingIds = (cfg.entityIds || []).map(String);
+    const mergedIds = [...new Set([...existingIds, ...data.entityIds.map(String)])];
+    const mergedLabels = { ...(cfg.entityLabels || {}), ...(data.entityLabels || {}) };
+    const mergedGroups = { ...(cfg.entityGroups || {}), ...(data.entityGroups || {}) };
+    const added = mergedIds.length - existingIds.length;
+    await api('POST', '/api/config', {
+      entityIds: mergedIds.map(Number),
+      entityLabels: mergedLabels,
+      entityGroups: mergedGroups,
+    });
+    alert(`Imported ${added} new monitor${added !== 1 ? 's' : ''}.`);
   } catch (e) {
     alert('Failed to import: ' + e.message);
   }
