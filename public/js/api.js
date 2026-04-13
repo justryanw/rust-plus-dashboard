@@ -62,7 +62,7 @@ let _refreshInterval = null;
 async function apiRefresh() {
   const btn = document.getElementById('refreshBtn');
   const ring = document.getElementById('refreshRing');
-  const circumference = 94.25; // 2 * π * 15
+  const circumference = 100.53; // 2 * π * 16
   btn.disabled = true;
   btn.classList.add('refreshing');
 

@@ -775,19 +775,14 @@ textarea { min-height: 70px; resize: vertical; }
   flex-shrink: 0;
   transition: opacity 0.15s;
 }
-.refresh-btn::before {
-  content: '';
-  position: absolute;
-  inset: 4px;
-  border-radius: 50%;
-  background: var(--surface);
-}
+.refresh-btn span { position: relative; z-index: 1; line-height: 1; }
 .refresh-btn .refresh-ring {
   position: absolute;
-  inset: 3px;
+  inset: 0;
   z-index: 2;
   pointer-events: none;
 }
+.refresh-ring-bg { stroke: var(--border); }
 .refresh-ring-fill {
   transition: stroke-dashoffset 0.3s ease;
 }
