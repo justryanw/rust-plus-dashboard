@@ -375,7 +375,7 @@ function renderStats() {
   const totalQty = items.reduce((s, i) => s + i.quantity, 0);
   const entityGroups = (state.config || {}).entityGroups || {};
   const monitors = Object.values(state.monitors || {}).filter(m => {
-    if (m.error || m.unpowered) return false;
+    if (m.error) return false;
     const groupName = entityGroups[String(m.entityId)];
     if (groupName && (isGroupHidden(groupName) || isGroupSlotHidden(groupName))) return false;
     return true;
