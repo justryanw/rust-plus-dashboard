@@ -23,15 +23,17 @@ let _saveTimer = null;
 let _brushCursor = null;
 let _vendingPopupMarker = null;
 
+// Keys are proto enum names — protobufjs's default toJSON serializes enums as
+// their string names, not integers, so `m.type` arrives as e.g. "Player".
 const MARKER_TYPES = {
-  1: { label: 'Player', color: 0x4ade80 },
-  2: { label: 'Explosion', color: 0xf87171 },
-  3: { label: 'Vending Machine', color: 0x60a5fa },
-  4: { label: 'CH47', color: 0xfacc15 },
-  5: { label: 'Cargo Ship', color: 0xf97316 },
-  6: { label: 'Crate', color: 0xa78bfa },
-  7: { label: 'Radius', color: 0xfacc15 },
-  8: { label: 'Attack Helicopter', color: 0xef4444 },
+  Player: { label: 'Player', color: 0x4ade80 },
+  Explosion: { label: 'Explosion', color: 0xf87171 },
+  VendingMachine: { label: 'Vending Machine', color: 0x60a5fa },
+  CH47: { label: 'CH47', color: 0xfacc15 },
+  CargoShip: { label: 'Cargo Ship', color: 0xf97316 },
+  Crate: { label: 'Crate', color: 0xa78bfa },
+  GenericRadius: { label: 'Radius', color: 0xfacc15 },
+  PatrolHelicopter: { label: 'Attack Helicopter', color: 0xef4444 },
 };
 
 function hexToNum(hex) {
@@ -141,7 +143,6 @@ async function loadMapImage() {
   );
 
   _mapLoaded = true;
-  loadDrawings();
 }
 
 // ── Pan / Zoom ───────────────────────────────────────────────────────────────
@@ -285,7 +286,7 @@ function renderMarkers() {
     const info = MARKER_TYPES[m.type] || { label: 'Unknown', color: 0x888888 };
     const pos = worldToPixel(m.x, m.y);
 
-    if (m.type === 7) {
+    if (m.type === 'GenericRadius') {
       // Radius marker
       const imgW = _mapSprite.texture.width;
       const margin = _mapMeta.oceanMargin || 0;
@@ -302,7 +303,7 @@ function renderMarkers() {
       continue;
     }
 
-    const isVending = m.type === 3;
+    const isVending = m.type === 'VendingMachine';
     const dotSize = isVending ? 6 : 4;
     const name = m.name || info.label;
 
@@ -642,14 +643,18 @@ async function loadMap() {
       ]);
       _mapMeta = metaRes;
       _mapMarkers = markersRes.markers || [];
+      console.log(`Map loaded: ${_mapMarkers.length} markers`);
     } else {
-      // Already loaded, just refresh markers
+      // Already loaded — force a resize in case the viewport size changed while
+      // the tab was hidden (Pixi only resizes on window events, not element show)
+      _pixiApp.resize();
       const [markersRes, metaRes] = await Promise.all([
         api('GET', '/api/map/markers'),
         api('GET', '/api/map/meta'),
       ]);
       _mapMeta = metaRes;
       _mapMarkers = markersRes.markers || [];
+      console.log(`Map refreshed: ${_mapMarkers.length} markers`);
     }
     renderMarkers();
   } catch (e) {
@@ -662,12 +667,19 @@ async function loadMap() {
 }
 
 async function refreshMapMarkers() {
+  const btn = document.querySelector('.map-toolbar button[onclick="refreshMapMarkers()"]');
+  if (btn) { btn.disabled = true; btn.textContent = '↻ Refreshing…'; }
   try {
     const res = await api('GET', '/api/map/markers');
     _mapMarkers = res.markers || [];
+    if (_pixiApp) _pixiApp.resize();
     renderMarkers();
+    console.log(`Markers refreshed: ${_mapMarkers.length}`);
   } catch (e) {
     console.error('Failed to refresh markers:', e);
+    alert(`Failed to refresh markers: ${e.message}`);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '↻ Refresh'; }
   }
 }
 
