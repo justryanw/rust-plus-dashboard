@@ -3,3 +3,4 @@ node_modules/
 result
 config.json
 fcm_credentials.json
+drawings/

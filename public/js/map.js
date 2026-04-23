@@ -5,10 +5,10 @@ let _pixiApp = null;
 let _mapContainer = null;
 let _mapSprite = null;
 let _markersContainer = null;
-let _drawCanvas = null;      // offscreen HTML canvas for painting
-let _drawCtx = null;          // 2D context of _drawCanvas
-let _drawSprite = null;       // PIXI.Sprite showing _drawCanvas as texture
-let _drawTexture = null;      // PIXI.Texture wrapping _drawCanvas
+// Drawing layer lives entirely on the GPU. CPU only ships a few floats of
+// stroke geometry per pointer event; never any pixel data during drawing.
+let _drawRenderTexture = null;  // GPU-only canvas for committed paint
+let _drawSprite = null;         // PIXI.Sprite displaying the RenderTexture
 let _mapLoaded = false;
 let _mapMarkers = null;
 let _mapMeta = null;
@@ -16,12 +16,15 @@ let _drawMode = false;
 let _eraseMode = false;
 let _penDown = false;
 let _lastDrawPt = null;
-let _drawColor = '#e8622a';
+let _drawColor = '#000000';
 let _drawWidth = 3;
 let _drawDirty = false;
 let _saveTimer = null;
 let _brushCursor = null;
 let _vendingPopupMarker = null;
+// Track pending saves so a broadcast we triggered ourselves doesn't cause us
+// to round-trip our own drawing back through the texture.
+const _pendingSaveIds = new Set();
 
 // Keys are proto enum names — protobufjs's default toJSON serializes enums as
 // their string names, not integers, so `m.type` arrives as e.g. "Player".
@@ -117,20 +120,13 @@ async function loadMapImage() {
   _mapSprite = new PIXI.Sprite(texture);
   _mapContainer.addChild(_mapSprite);
 
-  // Create offscreen canvas for painting, same size as map image
+  // GPU-resident drawing texture, same size as map image. No CPU canvas.
   const mapW = _mapSprite.texture.width;
   const mapH = _mapSprite.texture.height;
-  _drawCanvas = document.createElement('canvas');
-  _drawCanvas.width = mapW;
-  _drawCanvas.height = mapH;
-  _drawCtx = _drawCanvas.getContext('2d');
-
-  _drawTexture = PIXI.Texture.from(_drawCanvas);
-  _drawSprite = new PIXI.Sprite(_drawTexture);
+  _drawRenderTexture = PIXI.RenderTexture.create({ width: mapW, height: mapH });
+  _drawSprite = new PIXI.Sprite(_drawRenderTexture);
   _mapContainer.addChild(_drawSprite);
   _mapContainer.addChild(_markersContainer);
-
-  loadDrawingCanvas();
 
   // Fit to viewport
   const vw = _pixiApp.screen.width;
@@ -458,7 +454,7 @@ function updateBrushCursor(screenX, screenY) {
   const screenR = worldR * _mapContainer.scale.x;
 
   _brushCursor.clear();
-  _brushCursor.lineStyle(1, _eraseMode ? 0xffffff : hexToNum(_drawColor), 0.7);
+  _brushCursor.lineStyle(2.5, 0x000000, 1);
   _brushCursor.drawCircle(0, 0, Math.max(screenR, 2));
   _brushCursor.position.set(cx, cy);
   _brushCursor.visible = true;
@@ -494,61 +490,44 @@ function brushWorldSize() {
   return _drawWidth / _mapContainer.scale.x;
 }
 
-function paintAt(x, y) {
-  if (!_drawCtx) return;
-  const r = brushWorldSize();
-  if (_eraseMode) {
-    _drawCtx.save();
-    _drawCtx.globalCompositeOperation = 'destination-out';
-    _drawCtx.beginPath();
-    _drawCtx.arc(x, y, r, 0, Math.PI * 2);
-    _drawCtx.fill();
-    _drawCtx.restore();
-  } else {
-    _drawCtx.fillStyle = _drawColor;
-    _drawCtx.globalAlpha = 0.85;
-    _drawCtx.beginPath();
-    _drawCtx.arc(x, y, r, 0, Math.PI * 2);
-    _drawCtx.fill();
-    _drawCtx.globalAlpha = 1;
-  }
+// ── GPU paint primitives ─────────────────────────────────────────────────────
+// Build a PIXI.Graphics for a stroke segment, render it onto _drawRenderTexture
+// in-place (clear:false), then discard. Pixel data never crosses CPU↔GPU.
+function _renderToDrawTexture(graphics) {
+  if (!_drawRenderTexture || !_pixiApp) return;
+  _pixiApp.renderer.render(graphics, { renderTexture: _drawRenderTexture, clear: false });
+  graphics.destroy();
   _drawDirty = true;
+}
+
+function paintAt(x, y) {
+  const r = brushWorldSize();
+  const g = new PIXI.Graphics();
+  if (_eraseMode) {
+    g.beginFill(0xffffff, 1);
+    g.drawCircle(x, y, r);
+    g.endFill();
+    g.blendMode = PIXI.BLEND_MODES.ERASE;
+  } else {
+    g.beginFill(hexToNum(_drawColor), 1);
+    g.drawCircle(x, y, r);
+    g.endFill();
+  }
+  _renderToDrawTexture(g);
 }
 
 function paintLine(x0, y0, x1, y1) {
-  if (!_drawCtx) return;
   const r = brushWorldSize();
+  const g = new PIXI.Graphics();
   if (_eraseMode) {
-    _drawCtx.save();
-    _drawCtx.globalCompositeOperation = 'destination-out';
-    _drawCtx.lineWidth = r * 2;
-    _drawCtx.lineCap = 'round';
-    _drawCtx.lineJoin = 'round';
-    _drawCtx.beginPath();
-    _drawCtx.moveTo(x0, y0);
-    _drawCtx.lineTo(x1, y1);
-    _drawCtx.stroke();
-    _drawCtx.restore();
+    g.lineStyle({ width: r * 2, color: 0xffffff, alpha: 1, cap: 'round', join: 'round' });
+    g.blendMode = PIXI.BLEND_MODES.ERASE;
   } else {
-    _drawCtx.strokeStyle = _drawColor;
-    _drawCtx.globalAlpha = 0.85;
-    _drawCtx.lineWidth = r * 2;
-    _drawCtx.lineCap = 'round';
-    _drawCtx.lineJoin = 'round';
-    _drawCtx.beginPath();
-    _drawCtx.moveTo(x0, y0);
-    _drawCtx.lineTo(x1, y1);
-    _drawCtx.stroke();
-    _drawCtx.globalAlpha = 1;
+    g.lineStyle({ width: r * 2, color: hexToNum(_drawColor), alpha: 1, cap: 'round', join: 'round' });
   }
-  _drawDirty = true;
-}
-
-function updateDrawTexture() {
-  if (_drawTexture && _drawDirty) {
-    _drawTexture.update();
-    _drawDirty = false;
-  }
+  g.moveTo(x0, y0);
+  g.lineTo(x1, y1);
+  _renderToDrawTexture(g);
 }
 
 function startDrawStroke(e) {
@@ -556,69 +535,99 @@ function startDrawStroke(e) {
   const p = screenToWorld(e.clientX, e.clientY);
   _lastDrawPt = p;
   paintAt(p.x, p.y);
-  updateDrawTexture();
 }
 
 function continueDrawStroke(e) {
   if (!_penDown) return;
   const p = screenToWorld(e.clientX, e.clientY);
-  if (_lastDrawPt) {
-    paintLine(_lastDrawPt.x, _lastDrawPt.y, p.x, p.y);
-  }
+  if (_lastDrawPt) paintLine(_lastDrawPt.x, _lastDrawPt.y, p.x, p.y);
   _lastDrawPt = p;
-  updateDrawTexture();
 }
 
 function endDrawStroke(e) {
   if (!_penDown) return;
   _penDown = false;
   _lastDrawPt = null;
-  updateDrawTexture();
   scheduleCanvasSave();
 }
 
 function eraseAtPoint(e) {
-  // Eraser uses the same pen flow as draw
-  _penDown = true;
-  const p = screenToWorld(e.clientX, e.clientY);
-  _lastDrawPt = p;
-  paintAt(p.x, p.y);
-  updateDrawTexture();
+  startDrawStroke(e);
 }
 
+// ── Persistence (server-side, per server+map) ────────────────────────────────
 function scheduleCanvasSave() {
   clearTimeout(_saveTimer);
-  _saveTimer = setTimeout(saveDrawingCanvas, 2000);
+  _saveTimer = setTimeout(saveDrawing, 2000);
 }
 
-function saveDrawingCanvas() {
-  if (!_drawCanvas) return;
+async function saveDrawing() {
+  if (!_drawRenderTexture || !_pixiApp || !_drawDirty) return;
+  _drawDirty = false;
+  const saveId = Math.random().toString(36).slice(2);
+  _pendingSaveIds.add(saveId);
   try {
-    const dataUrl = _drawCanvas.toDataURL('image/png');
-    localStorage.setItem('mapDrawingCanvas', dataUrl);
+    // Snapshot the GPU texture back to a CPU canvas — the only readback in the
+    // pipeline, and it only happens on the debounced save (~once per stroke).
+    const canvas = _pixiApp.renderer.extract.canvas(_drawRenderTexture);
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    if (!blob) throw new Error('toBlob returned null');
+    const res = await fetch('/api/map/drawing', {
+      method: 'POST',
+      headers: { 'Content-Type': 'image/png', 'X-Save-Id': saveId },
+      body: blob,
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
   } catch (e) {
-    console.warn('Failed to save drawing canvas:', e.message);
+    console.error('Failed to save drawing:', e);
+    _pendingSaveIds.delete(saveId);
   }
 }
 
-function loadDrawingCanvas() {
-  if (!_drawCanvas || !_drawCtx) return;
-  const dataUrl = localStorage.getItem('mapDrawingCanvas');
-  if (!dataUrl) return;
-  const img = new Image();
-  img.onload = () => {
-    _drawCtx.drawImage(img, 0, 0);
-    if (_drawTexture) _drawTexture.update();
-  };
-  img.src = dataUrl;
+async function loadDrawing() {
+  if (!_drawRenderTexture || !_pixiApp) return;
+  try {
+    const res = await fetch('/api/map/drawing', { cache: 'no-cache' });
+    if (res.status === 204) {
+      // No drawing yet on server — clear local texture
+      _pixiApp.renderer.render(new PIXI.Container(), { renderTexture: _drawRenderTexture, clear: true });
+      return;
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = reject;
+      img.src = url;
+    });
+    URL.revokeObjectURL(url);
+    const tex = PIXI.Texture.from(img);
+    const sprite = new PIXI.Sprite(tex);
+    _pixiApp.renderer.render(sprite, { renderTexture: _drawRenderTexture, clear: true });
+    sprite.destroy();
+    tex.destroy(true);
+  } catch (e) {
+    console.error('Failed to load drawing:', e);
+  }
+}
+
+// Called by api.js when another client (or our own POST) updates the drawing.
+async function onDrawingUpdated(saveId) {
+  if (saveId && _pendingSaveIds.has(saveId)) {
+    _pendingSaveIds.delete(saveId);
+    return; // it's our own save — skip the round-trip
+  }
+  await loadDrawing();
 }
 
 function clearDrawings() {
-  if (_drawCtx && _drawCanvas) {
-    _drawCtx.clearRect(0, 0, _drawCanvas.width, _drawCanvas.height);
-    if (_drawTexture) _drawTexture.update();
+  if (_drawRenderTexture && _pixiApp) {
+    _pixiApp.renderer.render(new PIXI.Container(), { renderTexture: _drawRenderTexture, clear: true });
+    _drawDirty = true;
+    scheduleCanvasSave();
   }
-  localStorage.removeItem('mapDrawingCanvas');
 }
 
 // ── Public API ───────────────────────────────────────────────────────────────
@@ -643,6 +652,9 @@ async function loadMap() {
       ]);
       _mapMeta = metaRes;
       _mapMarkers = markersRes.markers || [];
+      // Drawing fetch must run after /api/map (which seeds the server-side
+      // map cache that the drawing key depends on)
+      await loadDrawing();
       console.log(`Map loaded: ${_mapMarkers.length} markers`);
     } else {
       // Already loaded — force a resize in case the viewport size changed while
@@ -686,7 +698,12 @@ async function refreshMapMarkers() {
 function destroyMap() {
   closeVendingPopup();
   clearTimeout(_saveTimer);
-  if (_drawCanvas && _drawCtx) saveDrawingCanvas();
+  // Flush any pending dirty paint before tearing down
+  if (_drawDirty) saveDrawing();
+  if (_drawRenderTexture) {
+    _drawRenderTexture.destroy(true);
+    _drawRenderTexture = null;
+  }
   if (_pixiApp) {
     _pixiApp.destroy(true, { children: true, texture: true, baseTexture: true });
     _pixiApp = null;
@@ -694,10 +711,7 @@ function destroyMap() {
   _mapContainer = null;
   _mapSprite = null;
   _markersContainer = null;
-  _drawCanvas = null;
-  _drawCtx = null;
   _drawSprite = null;
-  _drawTexture = null;
   _mapLoaded = false;
   _mapMarkers = null;
   _mapMeta = null;

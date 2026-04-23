@@ -5,6 +5,7 @@ const RustPlus = require('@liamcottle/rustplus.js');
 const PushReceiverClient = require('@liamcottle/push-receiver/src/client');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 process.on('uncaughtException', (err) => {
     console.error('Uncaught exception (continuing):', err.message);
@@ -23,7 +24,10 @@ app.use('/vendor/pixi.js', express.static(path.join(__dirname, 'node_modules/pix
 
 const DATA_DIR = process.env.RUST_STORAGE_DASHBOARD_DATA_DIR || __dirname;
 const CONFIG_PATH = path.join(DATA_DIR, 'config.json');
+const DRAWINGS_DIR = path.join(DATA_DIR, 'drawings');
 const ITEMS_PATH = path.join(__dirname, 'items.json');
+
+try { fs.mkdirSync(DRAWINGS_DIR, { recursive: true }); } catch (e) { console.error('Failed to create drawings dir:', e.message); }
 
 let config = {};
 let rustplus = null;
@@ -117,9 +121,8 @@ function getItemShortname(itemId) {
     return (entry && entry.shortname) || null;
 }
 
-function broadcastState() {
-    const state = buildState();
-    const msg = JSON.stringify(state);
+function broadcast(payload) {
+    const msg = JSON.stringify(payload);
     wss.clients.forEach(client => {
         if (client.readyState === WebSocket.OPEN) {
             try { client.send(msg); } catch (e) { console.error('WS broadcast error:', e.message); }
@@ -127,8 +130,13 @@ function broadcastState() {
     });
 }
 
+function broadcastState() {
+    broadcast(buildState());
+}
+
 function buildState() {
     return {
+        type: 'state',
         status: connectionStatus,
         error: connectionError,
         inventory: combinedInventory,
@@ -483,6 +491,7 @@ async function connectToServer(cfg) {
     connectionStatus = 'connecting';
     cachedMapData = null;
     cachedServerInfo = null;
+    cachedMapHash = null;
     rateLimiter.reset(); // fresh bucket on each connection attempt
 
     // Seed stubs for all configured entities so the UI shows them immediately
@@ -860,6 +869,25 @@ app.post('/api/switch/:entityId/rename', (req, res) => {
 
 let cachedMapData = null;
 let cachedServerInfo = null;
+let cachedMapHash = null;
+
+// Per-server, per-map drawing storage. The hash invalidates on wipe (different
+// map JPEG → different hash → different file), so old drawings don't bleed
+// across to a new wipe.
+function mapHash() {
+    if (cachedMapHash) return cachedMapHash;
+    if (!cachedMapData) return null;
+    cachedMapHash = crypto.createHash('sha256').update(cachedMapData.jpgImage).digest('hex').slice(0, 16);
+    return cachedMapHash;
+}
+
+function drawingPath() {
+    if (!config.serverIp || !config.appPort) return null;
+    const hash = mapHash();
+    if (!hash) return null;
+    const safeIp = String(config.serverIp).replace(/[^a-zA-Z0-9]/g, '_');
+    return path.join(DRAWINGS_DIR, `${safeIp}_${config.appPort}_${hash}.png`);
+}
 
 app.get('/api/map', async (_, res) => {
     if (connectionStatus !== 'connected' || !rustplus) {
@@ -951,6 +979,39 @@ app.get('/api/map/markers', async (_, res) => {
         res.json(markers);
     } catch (e) {
         console.error('/api/map/markers error:', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Drawing layer — per-server, per-map PNG persisted to disk and broadcast to
+// all connected clients on save. Eventually-consistent: last save wins.
+app.get('/api/map/drawing', async (_, res) => {
+    const p = drawingPath();
+    if (!p) return res.status(204).end();
+    try {
+        const buf = await fs.promises.readFile(p);
+        res.set('Content-Type', 'image/png');
+        res.set('Cache-Control', 'no-cache');
+        res.send(buf);
+    } catch (e) {
+        if (e.code === 'ENOENT') return res.status(204).end();
+        console.error('/api/map/drawing GET error:', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/map/drawing', express.raw({ type: 'image/png', limit: '20mb' }), async (req, res) => {
+    const p = drawingPath();
+    if (!p) return res.status(400).json({ error: 'No active server/map — load the map first' });
+    if (!req.body || req.body.length === 0) return res.status(400).json({ error: 'Empty body' });
+    try {
+        await fs.promises.writeFile(p, req.body);
+        // Echo the saveId from the client header so the saver can ignore its own broadcast
+        const saveId = req.get('X-Save-Id') || null;
+        broadcast({ type: 'drawingUpdated', saveId });
+        res.json({ success: true });
+    } catch (e) {
+        console.error('/api/map/drawing POST error:', e.message);
         res.status(500).json({ error: e.message });
     }
 });

@@ -15,8 +15,14 @@ function connectWS() {
 
   ws.onmessage = (e) => {
     try {
-      const newState = JSON.parse(e.data);
-      state = newState;
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'drawingUpdated') {
+        if (typeof onDrawingUpdated === 'function') onDrawingUpdated(msg.saveId);
+        return;
+      }
+      // Default: state snapshot (also covers messages without an explicit type
+      // for backwards compat — initial WS handshake responses, etc.)
+      state = msg;
       render();
       if (state.status === 'connected') {
         hasBeenConnected = true;
