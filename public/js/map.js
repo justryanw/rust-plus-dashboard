@@ -788,6 +788,65 @@ const TEAM_NOTE_ICON_DRAWERS = [
   },
 ];
 
+// Shopping trolley icon for vending markers — same two-tone style as the team
+// note icons. `dark` paints the silhouette, `light` punches details back to
+// the disc colour.
+function _drawTrolleyIcon(g, dark, light) {
+  // Basket (slight trapezoid)
+  g.beginFill(dark);
+  g.moveTo(-7, -3);
+  g.lineTo(7, -3);
+  g.lineTo(5.5, 3);
+  g.lineTo(-5.5, 3);
+  g.closePath();
+  g.endFill();
+  // Two horizontal "wire" slats inside the basket
+  g.beginFill(light, 0.55);
+  g.drawRect(-6.5, -1.6, 13, 0.7);
+  g.drawRect(-6, 0, 12, 0.7);
+  g.endFill();
+  // Handle running up and back from the top-left of the basket
+  g.lineStyle(1.5, dark);
+  g.moveTo(-7, -3);
+  g.lineTo(-9, -7);
+  g.lineTo(-6, -7);
+  g.lineStyle(0);
+  // Wheels
+  g.beginFill(dark);
+  g.drawCircle(-3, 5.5, 1.6);
+  g.drawCircle(4, 5.5, 1.6);
+  g.endFill();
+}
+
+function makeVendingMarker(m) {
+  const c = new PIXI.Container();
+  const orders = m.sellOrders || [];
+  // "All sold out" = the vending's flag is set, OR every listing has zero stock
+  const allSoldOut = !!m.outOfStock
+    || (orders.length > 0 && orders.every((o) => (o.amountInStock || 0) <= 0));
+  const baseColor = allSoldOut ? 0xef4444 : 0x22c55e; // red or green
+  const dark = shadeColor(baseColor, 0.42);
+  const rim = shadeColor(baseColor, 0.28);
+  const radius = 12;
+
+  const disc = new PIXI.Graphics();
+  disc.lineStyle(1.5, rim, 1);
+  disc.beginFill(baseColor, 1);
+  disc.drawCircle(0, 0, radius);
+  disc.endFill();
+  c.addChild(disc);
+
+  const iconG = new PIXI.Graphics();
+  _drawTrolleyIcon(iconG, dark, baseColor);
+  c.addChild(iconG);
+
+  c._screenScale = true;
+  c.interactive = true;
+  c.cursor = "pointer";
+  c.hitArea = new PIXI.Circle(0, 0, radius + 2);
+  return c;
+}
+
 function makeTeamNoteMarker(note) {
   const c = new PIXI.Container();
   const isDeath = (note.type ?? 0) === 0;
@@ -1000,43 +1059,63 @@ async function renderMarkers() {
     }
 
     const isVending = m.type === "VendingMachine";
-    const dotSize = isVending ? 6 : 4;
     const name = m.name || info.label;
 
-    const markerC = new PIXI.Container();
-    markerC.position.set(pos.x, pos.y);
+    let markerC;
+    let labelOffset;
+    if (isVending) {
+      markerC = makeVendingMarker(m);
+      markerC.position.set(pos.x, pos.y);
+      labelOffset = 16;
+      const orders = m.sellOrders || [];
+      const allSoldOut = !!m.outOfStock
+        || (orders.length > 0 && orders.every((o) => (o.amountInStock || 0) <= 0));
 
-    const dot = new PIXI.Graphics();
-    dot.beginFill(info.color);
-    dot.lineStyle(1, 0xffffff, 0.4);
-    dot.drawCircle(0, 0, dotSize);
-    dot.endFill();
-    markerC.addChild(dot);
+      // Click → vending popup
+      if (orders.length > 0) {
+        markerC.on("pointertap", (e) => {
+          showVendingPopup(m, e.global.x, e.global.y);
+        });
+      }
 
-    const label = _makeMarkerText(name + (m.outOfStock ? " (Sold Out)" : ""), {
-      fontWeight: "600",
-      dropShadowBlur: 3,
-    });
-    label.anchor.set(0, 0.5);
-    label.position.set(dotSize + 4, 0);
-    label.visible = false;
-    markerC.addChild(label);
-
-    markerC.interactive = true;
-    markerC.cursor = isVending ? "pointer" : "default";
-    markerC.hitArea = new PIXI.Circle(0, 0, Math.max(dotSize + 4, 10));
-
-    markerC.on("pointerover", () => { label.visible = true; });
-    markerC.on("pointerout", () => { label.visible = false; });
-
-    if (isVending && m.sellOrders && m.sellOrders.length > 0) {
-      const markerData = m;
-      markerC.on("pointertap", (e) => {
-        showVendingPopup(markerData, e.global.x, e.global.y);
+      // Hover label
+      const label = _makeMarkerText(name + (allSoldOut ? " (Sold Out)" : ""), {
+        fontWeight: "600",
+        dropShadowBlur: 3,
       });
+      label.anchor.set(0, 0.5);
+      label.position.set(labelOffset, 0);
+      label.visible = false;
+      markerC.addChild(label);
+      markerC.on("pointerover", () => { label.visible = true; });
+      markerC.on("pointerout", () => { label.visible = false; });
+    } else {
+      const dotSize = 4;
+      labelOffset = dotSize + 4;
+      markerC = new PIXI.Container();
+      markerC.position.set(pos.x, pos.y);
+
+      const dot = new PIXI.Graphics();
+      dot.beginFill(info.color);
+      dot.lineStyle(1, 0xffffff, 0.4);
+      dot.drawCircle(0, 0, dotSize);
+      dot.endFill();
+      markerC.addChild(dot);
+
+      const label = _makeMarkerText(name, { fontWeight: "600", dropShadowBlur: 3 });
+      label.anchor.set(0, 0.5);
+      label.position.set(labelOffset, 0);
+      label.visible = false;
+      markerC.addChild(label);
+
+      markerC.interactive = true;
+      markerC.cursor = "default";
+      markerC.hitArea = new PIXI.Circle(0, 0, Math.max(dotSize + 4, 10));
+      markerC.on("pointerover", () => { label.visible = true; });
+      markerC.on("pointerout", () => { label.visible = false; });
+      markerC._screenScale = true;
     }
 
-    markerC._screenScale = true;
     _staticMarkersContainer.addChild(markerC);
     count++;
   }
