@@ -17,7 +17,7 @@ let _eraseMode = false;
 let _penDown = false;
 let _lastDrawPt = null;
 let _drawColor = '#000000';
-let _drawWidth = 3;
+let _drawWidth = 10;
 let _drawDirty = false;
 let _saveTimer = null;
 let _brushCursor = null;
@@ -41,6 +41,19 @@ const MARKER_TYPES = {
 
 function hexToNum(hex) {
   return parseInt(hex.replace('#', ''), 16);
+}
+
+// Logarithmic brush slider: position 0..1000 ↔ size 1..200 world pixels.
+// More granularity at the small end (where sub-10px sizes matter most).
+const _BRUSH_MIN = 1;
+const _BRUSH_MAX = 200;
+function sliderToBrushSize(pos) {
+  const t = Math.min(Math.max(pos, 0), 1000) / 1000;
+  return Math.round(Math.exp(Math.log(_BRUSH_MIN) + t * (Math.log(_BRUSH_MAX) - Math.log(_BRUSH_MIN))));
+}
+function brushSizeToSlider(size) {
+  const s = Math.min(Math.max(size, _BRUSH_MIN), _BRUSH_MAX);
+  return Math.round(((Math.log(s) - Math.log(_BRUSH_MIN)) / (Math.log(_BRUSH_MAX) - Math.log(_BRUSH_MIN))) * 1000);
 }
 
 // ── Coordinate conversion ────────────────────────────────────────────────────
@@ -69,7 +82,7 @@ function initPixiApp() {
           <button class="btn btn-ghost map-toolbar-btn" id="mapDrawToggle" onclick="toggleDrawMode()">Draw</button>
           <button class="btn btn-ghost map-toolbar-btn" id="mapEraseToggle" onclick="toggleEraseMode()">Eraser</button>
           <input type="color" id="mapDrawColor" value="${_drawColor}" onchange="_drawColor=this.value" title="Draw color" style="width:28px;height:28px;padding:0;border:1px solid var(--border);border-radius:4px;background:none;cursor:pointer" />
-          <input type="range" id="mapBrushSize" min="1" max="20" value="${_drawWidth}" oninput="_drawWidth=Number(this.value)" title="Brush size" style="width:80px;cursor:pointer" />
+          <input type="range" id="mapBrushSize" min="0" max="1000" value="${brushSizeToSlider(_drawWidth)}" oninput="_drawWidth=sliderToBrushSize(Number(this.value))" title="Brush size" style="width:200px;cursor:pointer" />
         </div>
       </div>
       <div class="map-viewport" id="mapViewport">
@@ -487,7 +500,10 @@ function screenToWorld(sx, sy) {
 }
 
 function brushWorldSize() {
-  return _drawWidth / _mapContainer.scale.x;
+  // Absolute size in map (world) pixels — independent of zoom. Strokes look
+  // bigger when zoomed in, smaller when zoomed out. The brush cursor still
+  // scales correctly because it multiplies this by the container scale.
+  return _drawWidth;
 }
 
 // ── GPU paint primitives ─────────────────────────────────────────────────────
