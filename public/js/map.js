@@ -23,6 +23,7 @@ let _drawSprite = null; // PIXI.Sprite displaying the RenderTexture
 let _mapLoaded = false;
 let _mapMarkers = null;
 let _mapMeta = null;
+let _teamNotes = []; // player-placed map markers from getTeamInfo
 let _drawMode = false;
 let _eraseMode = false;
 let _penDown = false;
@@ -467,6 +468,41 @@ function _updateFollowBanner() {
   }
 }
 
+// Player-placed team map note. Rust+ exposes a `type` int for the note's
+// in-game icon (pin / heart / skull / etc.) — without an official mapping we
+// just color-cycle by type so notes of the same type look the same.
+const TEAM_NOTE_COLORS = [0xfacc15, 0xef4444, 0x60a5fa, 0xa78bfa, 0x4ade80, 0xfb923c];
+function makeTeamNoteMarker(note) {
+  const c = new PIXI.Container();
+  const color = TEAM_NOTE_COLORS[(note.type ?? 0) % TEAM_NOTE_COLORS.length];
+
+  // Classic pin: triangle with the apex at the actual location, circular head
+  const pin = new PIXI.Graphics();
+  pin.beginFill(color, 1);
+  pin.lineStyle(1.5, 0x000000, 0.8);
+  pin.moveTo(0, 0);        // tip = the world location
+  pin.lineTo(-6, -12);
+  pin.lineTo(6, -12);
+  pin.lineTo(0, 0);
+  pin.endFill();
+  pin.beginFill(color, 1);
+  pin.lineStyle(1.5, 0x000000, 0.8);
+  pin.drawCircle(0, -16, 6);
+  pin.endFill();
+  // Inner dot for contrast
+  pin.beginFill(0x000000, 0.5);
+  pin.lineStyle(0);
+  pin.drawCircle(0, -16, 2);
+  pin.endFill();
+  c.addChild(pin);
+
+  c._screenScale = true;
+  c.interactive = true;
+  c.cursor = "default";
+  c.hitArea = new PIXI.Circle(0, -10, 10);
+  return c;
+}
+
 function makeMovingMarker(m) {
   let c;
   let label;
@@ -677,6 +713,15 @@ async function renderMarkers() {
 
     markerC._screenScale = true; // counter-scaled in the ticker
     _staticMarkersContainer.addChild(markerC);
+    count++;
+  }
+
+  // Render team-placed map notes (always static — no interpolation needed)
+  for (const note of _teamNotes) {
+    const pos = worldToPixel(note.x, note.y);
+    const pin = makeTeamNoteMarker(note);
+    pin.position.set(pos.x, pos.y);
+    _staticMarkersContainer.addChild(pin);
     count++;
   }
 
@@ -1069,29 +1114,33 @@ async function loadMap() {
       // Init PixiJS app first (sets up DOM structure)
       await initPixiApp();
       // Then load image + data in parallel
-      const [, markersRes, metaRes] = await Promise.all([
+      const [, markersRes, metaRes, teamRes] = await Promise.all([
         loadMapImage(),
         api("GET", "/api/map/markers"),
         api("GET", "/api/map/meta"),
+        api("GET", "/api/map/team").catch(() => null),
       ]);
       _mapMeta = metaRes;
       _mapMarkers = markersRes.markers || [];
+      _teamNotes = teamRes?.mapNotes || [];
       // Drawing fetch must run after /api/map (which seeds the server-side
       // map cache that the drawing key depends on)
       await loadDrawing();
-      console.log(`Map loaded: ${_mapMarkers.length} markers`);
+      console.log(`Map loaded: ${_mapMarkers.length} markers, ${_teamNotes.length} team notes`);
       startMarkerAutoRefresh();
     } else {
       // Already loaded — force a resize in case the viewport size changed while
       // the tab was hidden (Pixi only resizes on window events, not element show)
       _pixiApp.resize();
-      const [markersRes, metaRes] = await Promise.all([
+      const [markersRes, metaRes, teamRes] = await Promise.all([
         api("GET", "/api/map/markers"),
         api("GET", "/api/map/meta"),
+        api("GET", "/api/map/team").catch(() => null),
       ]);
       _mapMeta = metaRes;
       _mapMarkers = markersRes.markers || [];
-      console.log(`Map refreshed: ${_mapMarkers.length} markers`);
+      _teamNotes = teamRes?.mapNotes || [];
+      console.log(`Map refreshed: ${_mapMarkers.length} markers, ${_teamNotes.length} team notes`);
     }
     await renderMarkers();
   } catch (e) {
@@ -1112,11 +1161,15 @@ async function refreshMapMarkers() {
     btn.textContent = "⟳";
   }
   try {
-    const res = await api("GET", "/api/map/markers");
-    _mapMarkers = res.markers || [];
+    const [markersRes, teamRes] = await Promise.all([
+      api("GET", "/api/map/markers"),
+      api("GET", "/api/map/team").catch(() => null),
+    ]);
+    _mapMarkers = markersRes.markers || [];
+    _teamNotes = teamRes?.mapNotes || [];
     if (_pixiApp) _pixiApp.resize();
     await renderMarkers();
-    console.log(`Markers refreshed: ${_mapMarkers.length}`);
+    console.log(`Markers refreshed: ${_mapMarkers.length}, ${_teamNotes.length} team notes`);
   } catch (e) {
     console.error("Failed to refresh markers:", e);
     alert(`Failed to refresh markers: ${e.message}`);
@@ -1131,8 +1184,12 @@ async function refreshMapMarkers() {
 // Quiet auto-refresh — no button feedback or alerts, used by the timer.
 async function _refreshMarkersQuiet() {
   try {
-    const res = await api("GET", "/api/map/markers");
-    _mapMarkers = res.markers || [];
+    const [markersRes, teamRes] = await Promise.all([
+      api("GET", "/api/map/markers"),
+      api("GET", "/api/map/team").catch(() => null),
+    ]);
+    _mapMarkers = markersRes.markers || [];
+    _teamNotes = teamRes?.mapNotes || [];
     await renderMarkers();
   } catch (e) {
     console.warn("Auto-refresh markers failed:", e.message);

@@ -24,8 +24,10 @@ buildNpmPackage {
 
     cp -r . $out/lib/rust-plus-dashboard/
 
-    # Patch itemIsBlueprint to optional — Rust+ doesn't always include it
-    sed -i 's/required bool itemIsBlueprint/optional bool itemIsBlueprint/g' \
+    # Relax all `required` fields to `optional`. Rust+ omits many fields the
+    # proto declares required, and the strict protobufjs decoder otherwise
+    # kills the request. Mirrors the runtime patch in server.js.
+    sed -i 's/\brequired\b/optional/g' \
       $out/lib/rust-plus-dashboard/node_modules/@liamcottle/rustplus.js/rustplus.proto
 
     makeWrapper ${lib.getExe nodejs} $out/bin/rust-plus-dashboard \

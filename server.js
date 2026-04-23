@@ -1,11 +1,36 @@
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
-const RustPlus = require('@liamcottle/rustplus.js');
-const PushReceiverClient = require('@liamcottle/push-receiver/src/client');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+
+// Patch the rustplus.proto BEFORE the library loads it. Several fields are
+// declared `required` but Rust+ omits them in real responses (offline team
+// members lack isOnline/x/y/spawnTime/etc., some entities lack
+// itemIsBlueprint). Without this patch the strict protobuf decoder throws.
+// nix/package.nix mirrors these patches at build time.
+(function patchRustPlusProto() {
+    const protoPath = path.join(__dirname, 'node_modules/@liamcottle/rustplus.js/rustplus.proto');
+    if (!fs.existsSync(protoPath)) return;
+    try {
+        const original = fs.readFileSync(protoPath, 'utf8');
+        // Rust+ in practice omits many fields the proto declares `required`,
+        // which makes the strict protobufjs decoder throw and kill the
+        // request mid-flight. Relaxing every `required` to `optional` matches
+        // what most rustplus.js wrappers do and is the only reliable fix.
+        const patched = original.replace(/\brequired\b/g, 'optional');
+        if (patched !== original) {
+            fs.writeFileSync(protoPath, patched);
+            console.log('Patched rustplus.proto: required → optional');
+        }
+    } catch (e) {
+        console.warn('Failed to patch rustplus.proto:', e.message);
+    }
+})();
+
+const RustPlus = require('@liamcottle/rustplus.js');
+const PushReceiverClient = require('@liamcottle/push-receiver/src/client');
 
 process.on('uncaughtException', (err) => {
     console.error('Uncaught exception (continuing):', err.message);
@@ -1055,6 +1080,27 @@ app.get('/api/steam/profile/:steamId', async (req, res) => {
         res.json(profile);
     } catch (e) {
         console.error(`/api/steam/profile/${id} error:`, e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/map/team', async (_, res) => {
+    if (connectionStatus !== 'connected' || !rustplus) {
+        return res.status(400).json({ error: 'Not connected' });
+    }
+    try {
+        await rateLimiter.acquire(1);
+        const teamInfo = await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => reject(new Error('Timeout')), 10000);
+            rustplus.getTeamInfo((msg) => {
+                clearTimeout(timeout);
+                if (msg.response && msg.response.teamInfo) resolve(msg.response.teamInfo);
+                else reject(new Error('No team info'));
+            });
+        });
+        res.json(teamInfo);
+    } catch (e) {
+        console.error('/api/map/team error:', e.message);
         res.status(500).json({ error: e.message });
     }
 });
