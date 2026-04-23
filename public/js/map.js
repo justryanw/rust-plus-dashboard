@@ -25,6 +25,9 @@ let _vendingPopupMarker = null;
 // Track pending saves so a broadcast we triggered ourselves doesn't cause us
 // to round-trip our own drawing back through the texture.
 const _pendingSaveIds = new Set();
+// Pre-rendered soft radial-gradient brush, built lazily and reused for every
+// stamp. Tinted per-stroke; eraser uses ERASE blend mode.
+let _brushTexture = null;
 
 // Keys are proto enum names — protobufjs's default toJSON serializes enums as
 // their string names, not integers, so `m.type` arrives as e.g. "Player".
@@ -507,43 +510,72 @@ function brushWorldSize() {
 }
 
 // ── GPU paint primitives ─────────────────────────────────────────────────────
-// Build a PIXI.Graphics for a stroke segment, render it onto _drawRenderTexture
-// in-place (clear:false), then discard. Pixel data never crosses CPU↔GPU.
-function _renderToDrawTexture(graphics) {
-  if (!_drawRenderTexture || !_pixiApp) return;
-  _pixiApp.renderer.render(graphics, { renderTexture: _drawRenderTexture, clear: false });
-  graphics.destroy();
-  _drawDirty = true;
+// Build a soft brush sprite (or a container of them for line interpolation)
+// and render it onto _drawRenderTexture. Pixel data never crosses CPU↔GPU
+// during drawing — only stamp positions/sizes/tints.
+
+function getBrushTexture() {
+  if (_brushTexture) return _brushTexture;
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  // Solid core that fades to transparent at the rim. The 0.6 stop keeps the
+  // center fully opaque, then the alpha falls off over the outer 40% for a
+  // soft edge that still renders as a clearly-defined stroke.
+  const grad = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.6, 'rgba(255,255,255,1)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+  _brushTexture = PIXI.Texture.from(canvas);
+  return _brushTexture;
+}
+
+function _makeStamp(x, y, r) {
+  const sprite = new PIXI.Sprite(getBrushTexture());
+  sprite.anchor.set(0.5);
+  sprite.x = x;
+  sprite.y = y;
+  sprite.width = r * 2;
+  sprite.height = r * 2;
+  if (_eraseMode) {
+    sprite.tint = 0xffffff;
+    sprite.blendMode = PIXI.BLEND_MODES.ERASE;
+  } else {
+    sprite.tint = hexToNum(_drawColor);
+  }
+  return sprite;
 }
 
 function paintAt(x, y) {
-  const r = brushWorldSize();
-  const g = new PIXI.Graphics();
-  if (_eraseMode) {
-    g.beginFill(0xffffff, 1);
-    g.drawCircle(x, y, r);
-    g.endFill();
-    g.blendMode = PIXI.BLEND_MODES.ERASE;
-  } else {
-    g.beginFill(hexToNum(_drawColor), 1);
-    g.drawCircle(x, y, r);
-    g.endFill();
-  }
-  _renderToDrawTexture(g);
+  if (!_drawRenderTexture || !_pixiApp) return;
+  const sprite = _makeStamp(x, y, brushWorldSize());
+  _pixiApp.renderer.render(sprite, { renderTexture: _drawRenderTexture, clear: false });
+  sprite.destroy();
+  _drawDirty = true;
 }
 
 function paintLine(x0, y0, x1, y1) {
+  if (!_drawRenderTexture || !_pixiApp) return;
   const r = brushWorldSize();
-  const g = new PIXI.Graphics();
-  if (_eraseMode) {
-    g.lineStyle({ width: r * 2, color: 0xffffff, alpha: 1, cap: 'round', join: 'round' });
-    g.blendMode = PIXI.BLEND_MODES.ERASE;
-  } else {
-    g.lineStyle({ width: r * 2, color: hexToNum(_drawColor), alpha: 1, cap: 'round', join: 'round' });
+  // Stamp spacing: half the brush radius gives heavy overlap so consecutive
+  // stamps form a continuous soft line without visible bumps.
+  const step = Math.max(1, r / 2);
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  const dist = Math.hypot(dx, dy);
+  const steps = Math.max(1, Math.ceil(dist / step));
+  const container = new PIXI.Container();
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps;
+    container.addChild(_makeStamp(x0 + dx * t, y0 + dy * t, r));
   }
-  g.moveTo(x0, y0);
-  g.lineTo(x1, y1);
-  _renderToDrawTexture(g);
+  _pixiApp.renderer.render(container, { renderTexture: _drawRenderTexture, clear: false });
+  container.destroy({ children: true });
+  _drawDirty = true;
 }
 
 function startDrawStroke(e) {
