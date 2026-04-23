@@ -10,6 +10,11 @@
 
 <header>
   <h1>Rust+ <span>Storage Dashboard</span></h1>
+  <div class="top-tab-bar">
+    <button class="top-tab-btn active" id="topTabStorage" onclick="switchSection('storage')">Storage</button>
+    <button class="top-tab-btn" id="topTabSwitches" onclick="switchSection('switches')">Switches</button>
+    <button class="top-tab-btn" id="topTabMap" onclick="switchSection('map')">Map</button>
+  </div>
   <div id="statusBadge" class="status-badge disconnected">
     <div class="status-dot"></div>
     <span id="statusText">Disconnected</span>
@@ -27,13 +32,6 @@
 
   <!-- Error banner -->
   <div class="error-banner" id="errorBanner"></div>
-
-  <!-- Top-level section tabs -->
-  <div class="top-tab-bar">
-    <button class="top-tab-btn active" id="topTabStorage" onclick="switchSection('storage')">Storage</button>
-    <button class="top-tab-btn" id="topTabSwitches" onclick="switchSection('switches')">Switches</button>
-    <button class="top-tab-btn" id="topTabMap" onclick="switchSection('map')">Map</button>
-  </div>
 
   <!-- Stats bar (Storage section only) -->
   <div class="stats-bar" id="statsBar">

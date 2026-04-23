@@ -40,7 +40,7 @@ header h1 {
   font-weight: 700;
   color: var(--accent2);
   letter-spacing: 0.5px;
-  flex: 1;
+  flex: 0 0 auto;
 }
 
 header h1 span { color: var(--text-muted); font-weight: 400; }
@@ -93,6 +93,22 @@ header h1 span { color: var(--text-muted); font-weight: 400; }
 /* ── Layout ── */
 .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
 
+/* When the Map section is active, the container drops its padding/max-width
+   so the map fills the entire area below the header. The map viewport gets a
+   matching height calc and loses its border/radius. */
+body.section-map .container { max-width: none; padding: 0; }
+body.section-map .error-banner { margin: 0; border-radius: 0; }
+body.section-map #controlsBar { display: none !important; }
+body.section-map #tabContentMap, body.section-map #mapContainer { height: 100%; }
+body.section-map .map-viewport {
+  height: calc(100vh - 62px);
+  min-height: 0;
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  border-bottom: none;
+}
+
 label {
   display: block;
   font-size: 0.75rem;
@@ -142,24 +158,26 @@ textarea { min-height: 70px; resize: vertical; }
 .stat-sub { font-size: 0.72rem; color: var(--text-muted); margin-top: 2px; }
 
 /* ── Controls ── */
+/* Lives inside <header>: centered between the title and the status badge.
+   flex:1 absorbs the available space; justify-content:center centers the tabs
+   inside that span so they sit visually in the middle of the page. */
 .top-tab-bar {
   display: flex;
   gap: 4px;
-  border-bottom: 2px solid var(--border);
-  margin-bottom: 16px;
+  flex: 1;
+  justify-content: center;
 }
 
 .top-tab-btn {
   background: none;
   border: none;
-  border-bottom: 3px solid transparent;
+  border-bottom: 2px solid transparent;
   color: var(--text-muted);
-  font-size: 1.05rem;
+  font-size: 0.95rem;
   font-weight: 700;
-  padding: 10px 20px;
+  padding: 6px 16px;
   cursor: pointer;
   transition: color 0.2s, border-color 0.2s;
-  margin-bottom: -2px;
 }
 
 .top-tab-btn:hover { color: var(--text); }

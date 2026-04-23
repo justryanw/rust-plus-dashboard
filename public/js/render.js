@@ -872,6 +872,9 @@ function switchTab(tab) {
   document.getElementById('topTabSwitches').classList.toggle('active', tab === 'switches');
   document.getElementById('topTabMap').classList.toggle('active', tab === 'map');
 
+  // Body class controls full-bleed layout for the map section
+  document.body.classList.toggle('section-map', tab === 'map');
+
   // Sub-tab bar and stats are part of the Storage section only
   document.getElementById('storageSubTabs').style.display = isStorage ? '' : 'none';
   document.getElementById('statsBar').style.display = isStorage ? '' : 'none';
