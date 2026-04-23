@@ -127,11 +127,19 @@ function getInvItem(itemId) {
 }
 
 function getItemName(itemId) {
-  return getInvItem(itemId)?.name || `Item #${itemId}`;
+  const inv = getInvItem(itemId);
+  if (inv) return inv.name;
+  const all = allItems[String(itemId)];
+  if (all) return all.name;
+  return `Item #${itemId}`;
 }
 
 function getItemShortname(itemId) {
-  return getInvItem(itemId)?.shortname || null;
+  const inv = getInvItem(itemId);
+  if (inv) return inv.shortname;
+  const all = allItems[String(itemId)];
+  if (all) return all.shortname;
+  return null;
 }
 
 function isAutoReconnecting() {
@@ -835,13 +843,17 @@ function switchTab(tab) {
   document.getElementById('tabMonitors').classList.toggle('active', tab === 'monitors');
   document.getElementById('tabAll').classList.toggle('active', tab === 'all');
   document.getElementById('tabSwitches').classList.toggle('active', tab === 'switches');
+  document.getElementById('tabMap').classList.toggle('active', tab === 'map');
   document.getElementById('tabContentItems').style.display = tab === 'items' ? '' : 'none';
   document.getElementById('tabContentMonitors').style.display = tab === 'monitors' ? '' : 'none';
   document.getElementById('tabContentAll').style.display = tab === 'all' ? '' : 'none';
   document.getElementById('tabContentSwitches').style.display = tab === 'switches' ? '' : 'none';
+  document.getElementById('tabContentMap').style.display = tab === 'map' ? '' : 'none';
   document.getElementById('sortSelect').style.display = tab === 'items' ? '' : 'none';
   document.getElementById('viewToggle').style.display = tab === 'items' ? '' : 'none';
+  document.getElementById('searchInput').parentElement.style.display = tab === 'map' ? 'none' : '';
   document.getElementById('searchInput').placeholder = tab === 'items' ? 'Search items…' : tab === 'switches' ? 'Search switches…' : 'Search monitors…';
+  if (tab === 'map') loadMap();
   onSearch();
 }
 
@@ -870,3 +882,5 @@ async function removeMonitor(event, id) {
   await api('DELETE', `/api/monitor/${id}`);
   promptedIds.delete(id);
 }
+
+// Map tab code is in /js/map.js (PixiJS)

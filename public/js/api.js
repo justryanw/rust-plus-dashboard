@@ -121,24 +121,36 @@ async function saveConfig() {
 function exportMonitors() {
   const cfg = state.config || {};
   const data = {
+    serverIp: cfg.serverIp || '',
+    appPort: cfg.appPort || 28082,
+    steamId: cfg.steamId || '',
     entityIds: cfg.entityIds || [],
     entityLabels: cfg.entityLabels || {},
     entityGroups: cfg.entityGroups || {},
+    switchIds: cfg.switchIds || [],
+    switchLabels: cfg.switchLabels || {},
   };
   const text = JSON.stringify(data, null, 2);
-  const ta = document.createElement('textarea');
-  ta.value = text;
-  ta.style.position = 'fixed';
-  ta.style.opacity = '0';
-  document.body.appendChild(ta);
-  ta.select();
-  document.execCommand('copy');
-  document.body.removeChild(ta);
-  alert(`Copied ${(data.entityIds).length} monitor${data.entityIds.length !== 1 ? 's' : ''} to clipboard.`);
+  navigator.clipboard.writeText(text).then(() => {
+    const monitors = (data.entityIds).length;
+    const switches = (data.switchIds).length;
+    alert(`Copied config to clipboard (${monitors} monitor${monitors !== 1 ? 's' : ''}, ${switches} switch${switches !== 1 ? 'es' : ''}).`);
+  }).catch(() => {
+    // Fallback for older browsers
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    alert('Copied config to clipboard.');
+  });
 }
 
 async function importMonitors() {
-  const text = prompt('Paste exported monitor data (JSON):');
+  const text = prompt('Paste exported config (JSON):');
   if (!text) return;
   try {
     const data = JSON.parse(text);
@@ -146,18 +158,21 @@ async function importMonitors() {
       alert('Invalid format — must contain an entityIds array.');
       return;
     }
-    const cfg = state.config || {};
-    const existingIds = (cfg.entityIds || []).map(String);
-    const mergedIds = [...new Set([...existingIds, ...data.entityIds.map(String)])];
-    const mergedLabels = { ...(cfg.entityLabels || {}), ...(data.entityLabels || {}) };
-    const mergedGroups = { ...(cfg.entityGroups || {}), ...(data.entityGroups || {}) };
-    const added = mergedIds.length - existingIds.length;
-    await api('POST', '/api/config', {
-      entityIds: mergedIds.map(Number),
-      entityLabels: mergedLabels,
-      entityGroups: mergedGroups,
-    });
-    alert(`Imported ${added} new monitor${added !== 1 ? 's' : ''}.`);
+    const monitors = data.entityIds.length;
+    const switches = (data.switchIds || []).length;
+    if (!confirm(`This will replace your current config with ${monitors} monitor${monitors !== 1 ? 's' : ''} and ${switches} switch${switches !== 1 ? 'es' : ''}. Continue?`)) return;
+    const body = {
+      entityIds: data.entityIds,
+      entityLabels: data.entityLabels || {},
+      entityGroups: data.entityGroups || {},
+      switchIds: data.switchIds || [],
+      switchLabels: data.switchLabels || {},
+    };
+    if (data.serverIp) body.serverIp = data.serverIp;
+    if (data.appPort) body.appPort = data.appPort;
+    if (data.steamId) body.steamId = data.steamId;
+    await api('POST', '/api/config', body);
+    alert(`Imported ${monitors} monitor${monitors !== 1 ? 's' : ''} and ${switches} switch${switches !== 1 ? 'es' : ''}.`);
   } catch (e) {
     alert('Failed to import: ' + e.message);
   }
@@ -191,10 +206,16 @@ async function refreshMonitor(event, entityId) {
 
 async function loadConfig() {
   try {
-    const [cfg, initialState] = await Promise.all([
+    const [cfg, initialState, itemsList] = await Promise.all([
       api('GET', '/api/config'),
       api('GET', '/api/state'),
+      api('GET', '/api/items'),
     ]);
+
+    // Build item lookup map
+    for (const item of (itemsList || [])) {
+      allItems[String(item.itemId)] = item;
+    }
 
     document.getElementById('cfgIp').value = cfg.serverIp || '';
     document.getElementById('cfgPort').value = cfg.appPort || 28082;

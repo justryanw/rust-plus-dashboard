@@ -19,6 +19,7 @@ const wss = new WebSocket.Server({ server });
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/vendor/pixi.js', express.static(path.join(__dirname, 'node_modules/pixi.js/dist/pixi.min.js')));
 
 const DATA_DIR = process.env.RUST_STORAGE_DASHBOARD_DATA_DIR || __dirname;
 const CONFIG_PATH = path.join(DATA_DIR, 'config.json');
@@ -160,7 +161,6 @@ async function startPairing() {
     pushClient = new PushReceiverClient(androidId, securityToken, []);
 
     pushClient.on('ON_DATA_RECEIVED', async (data) => {
-        console.log('FCM notification received:', JSON.stringify(data));
         try {
             // Data is in appData array as key-value pairs
             const appData = data?.appData || [];
@@ -171,14 +171,56 @@ async function startPairing() {
 
             const entityId = body.entityId;
             const entityType = Number(body.entityType);
+            const pairedIp = body.ip;
+            const pairedPort = body.port ? Number(body.port) : null;
+            const pairedToken = body.playerToken;
 
-            console.log(`Pairing: entityId=${entityId} type=${entityType} ip=${body.ip}`);
+            console.log(`Pairing: entityId=${entityId} type=${entityType} server=${pairedIp}:${pairedPort}`);
+
+            // Warn about likely causes of `not_found`:
+            //   - IP/port mismatch: dashboard is connected to a different server
+            //   - playerToken mismatch (server matches): the entity is registered to a
+            //     different player session/token. The saved token may still authenticate
+            //     the websocket but won't have visibility of the entity.
+            const ipMismatch = pairedIp && config.serverIp && pairedIp !== config.serverIp;
+            const portMismatch = pairedPort && config.appPort && pairedPort !== Number(config.appPort);
+            const tokenMismatch = pairedToken && config.playerToken && String(pairedToken) !== String(config.playerToken);
+            const serverMismatch = ipMismatch || portMismatch;
+            if (serverMismatch) {
+                console.warn(
+                    `⚠ Pairing server mismatch — entity is on ${pairedIp}:${pairedPort} ` +
+                    `but dashboard is configured for ${config.serverIp}:${config.appPort}. ` +
+                    `Update server settings (and player token) to fetch this entity.`
+                );
+            } else if (tokenMismatch) {
+                console.warn(
+                    `⚠ Pairing token mismatch — server matches but saved playerToken is stale. ` +
+                    `Auto-updating saved token and reconnecting…`
+                );
+                config.playerToken = String(pairedToken);
+                try {
+                    fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+                } catch (e) {
+                    console.error('Failed to write config.json:', e.message);
+                }
+                if (connectionStatus === 'connected' || connectionStatus === 'connecting') {
+                    connectToServer(config).catch(console.error);
+                }
+            }
 
             // entityType 3 = StorageMonitor, entityType 1 = Switch
             // Record the pending pairing — the client will call confirm once the user names it.
             if (entityId && (entityType === 3 || entityType === 1)) {
                 const id = String(entityId);
-                lastPaired = { entityId: id, entityType, timestamp: new Date().toISOString() };
+                lastPaired = {
+                    entityId: id,
+                    entityType,
+                    timestamp: new Date().toISOString(),
+                    pairedIp: pairedIp || null,
+                    pairedPort: pairedPort || null,
+                    serverMismatch: !!serverMismatch,
+                    // tokenMismatch is auto-resolved above, so don't surface to UI
+                };
                 broadcastState();
             }
         } catch (e) {
@@ -379,7 +421,7 @@ function applyEntityResult(entityId, info) {
 }
 
 async function fetchAndApplyEntities(entityIds) {
-    let failures = 0;
+    let timeouts = 0;
     const rateLimited = [];
 
     for (const entityId of entityIds) {
@@ -391,8 +433,8 @@ async function fetchAndApplyEntities(entityIds) {
             broadcastState();
         } catch (e) {
             const msg = e.message;
-            failures++;
             if (msg === 'Timeout') {
+                timeouts++;
                 console.warn(`Entity ${entityId} timed out — pausing 3s`);
                 entityData[id] = { entityId: id, label: config.entityLabels?.[id] || `Monitor ${entityId}`, items: entityData[id]?.items || [], error: 'timeout', lastUpdated: entityData[id]?.lastUpdated || new Date().toISOString() };
                 broadcastState();
@@ -410,8 +452,10 @@ async function fetchAndApplyEntities(entityIds) {
         }
     }
 
-    // If every entity failed (not just rate limited), check if connection is alive
-    if (failures === entityIds.length && rateLimited.length === 0) {
+    // Only treat as a possible dead connection if EVERY entity timed out (no response
+    // at all). Server-side errors like not_found are successful round-trips and mean
+    // the connection is alive — the entities just don't exist on this server.
+    if (timeouts === entityIds.length && rateLimited.length === 0) {
         try { await pingServer(); } catch (_) { markConnectionLost(); }
         return;
     }
@@ -437,6 +481,8 @@ async function connectToServer(cfg) {
     combinedInventory = {};
     connectionError = null;
     connectionStatus = 'connecting';
+    cachedMapData = null;
+    cachedServerInfo = null;
     rateLimiter.reset(); // fresh bucket on each connection attempt
 
     // Seed stubs for all configured entities so the UI shows them immediately
@@ -808,6 +854,126 @@ app.post('/api/switch/:entityId/rename', (req, res) => {
     try { fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2)); } catch (e) { console.error('Failed to write config.json:', e.message); }
     broadcastState();
     res.json({ success: true });
+});
+
+// ── Map API ──────────────────────────────────────────────────────────────────
+
+let cachedMapData = null;
+let cachedServerInfo = null;
+
+app.get('/api/map', async (_, res) => {
+    if (connectionStatus !== 'connected' || !rustplus) {
+        return res.status(400).json({ error: 'Not connected' });
+    }
+    try {
+        if (!cachedMapData) {
+            await rateLimiter.acquire(1);
+            cachedMapData = await new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => reject(new Error('Timeout')), 15000);
+                rustplus.getMap((msg) => {
+                    clearTimeout(timeout);
+                    if (msg.response && msg.response.map) resolve(msg.response.map);
+                    else reject(new Error('No map data'));
+                });
+            });
+        }
+        res.set('Content-Type', 'image/jpeg');
+        res.set('Cache-Control', 'public, max-age=300');
+        res.send(Buffer.from(cachedMapData.jpgImage));
+    } catch (e) {
+        console.error('/api/map error:', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/map/meta', async (_, res) => {
+    if (connectionStatus !== 'connected' || !rustplus) {
+        return res.status(400).json({ error: 'Not connected' });
+    }
+    try {
+        if (!cachedMapData) {
+            await rateLimiter.acquire(1);
+            cachedMapData = await new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => reject(new Error('Timeout')), 15000);
+                rustplus.getMap((msg) => {
+                    clearTimeout(timeout);
+                    if (msg.response && msg.response.map) resolve(msg.response.map);
+                    else reject(new Error('No map data'));
+                });
+            });
+        }
+        const monuments = (cachedMapData.monuments || []).map(m => ({
+            token: m.token,
+            x: m.x,
+            y: m.y,
+        }));
+        // Fetch server info for mapSize if not cached
+        if (!cachedServerInfo) {
+            await rateLimiter.acquire(1);
+            cachedServerInfo = await new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => reject(new Error('Timeout')), 10000);
+                rustplus.getInfo((msg) => {
+                    clearTimeout(timeout);
+                    if (msg.response && msg.response.info) resolve(msg.response.info);
+                    else reject(new Error('No info data'));
+                });
+            });
+        }
+        const mapSize = cachedServerInfo.mapSize || 0;
+        res.json({
+            width: cachedMapData.width,
+            height: cachedMapData.height,
+            oceanMargin: cachedMapData.oceanMargin,
+            mapSize,
+            background: cachedMapData.background || null,
+            monuments,
+        });
+    } catch (e) {
+        console.error('/api/map/meta error:', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/map/markers', async (_, res) => {
+    if (connectionStatus !== 'connected' || !rustplus) {
+        return res.status(400).json({ error: 'Not connected' });
+    }
+    try {
+        await rateLimiter.acquire(1);
+        const markers = await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => reject(new Error('Timeout')), 30000);
+            rustplus.getMapMarkers((msg) => {
+                clearTimeout(timeout);
+                if (msg.response && msg.response.mapMarkers) resolve(msg.response.mapMarkers);
+                else reject(new Error('No marker data'));
+            });
+        });
+        res.json(markers);
+    } catch (e) {
+        console.error('/api/map/markers error:', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/map/info', async (_, res) => {
+    if (connectionStatus !== 'connected' || !rustplus) {
+        return res.status(400).json({ error: 'Not connected' });
+    }
+    try {
+        await rateLimiter.acquire(1);
+        const info = await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => reject(new Error('Timeout')), 10000);
+            rustplus.getInfo((msg) => {
+                clearTimeout(timeout);
+                if (msg.response && msg.response.info) resolve(msg.response.info);
+                else reject(new Error('No info data'));
+            });
+        });
+        res.json(info);
+    } catch (e) {
+        console.error('/api/map/info error:', e.message);
+        res.status(500).json({ error: e.message });
+    }
 });
 
 app.post('/api/refresh', async (_, res) => {

@@ -179,13 +179,14 @@ function selectGroup(name) {
   closeGroupDropdown();
 }
 
-function _openModal(entityId) {
+function _openModal(entityId, paired = null) {
   pendingPairId = entityId;
   const cfg = state.config || {};
   const existingIds = new Set((cfg.entityIds || []).map(String));
   const isExisting = existingIds.has(String(entityId));
   document.querySelector('#pairModal h2').textContent = isExisting ? 'Rename Monitor' : 'Add Monitor';
   document.getElementById('pairModalSub').textContent = `Entity ID: ${entityId}`;
+  _renderMismatchBanner('pairServerMismatch', paired);
   const existingLabel = (cfg.entityLabels || {})[entityId];
   document.getElementById('pairNameInput').value = existingLabel || 'Storage Monitor';
   const existingGroup = (cfg.entityGroups || {})[String(entityId)] || '';
@@ -198,7 +199,34 @@ function _openModal(entityId) {
 }
 
 function showPairModal(paired) {
-  _openModal(paired.entityId);
+  _openModal(paired.entityId, paired);
+}
+
+function _renderMismatchBanner(elementId, paired) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  if (!paired || (!paired.serverMismatch && !paired.tokenMismatch)) {
+    el.style.display = 'none';
+    el.innerHTML = '';
+    return;
+  }
+  const cfg = state.config || {};
+  if (paired.serverMismatch) {
+    const pairedAddr = `${paired.pairedIp || '?'}:${paired.pairedPort || '?'}`;
+    const currentAddr = `${cfg.serverIp || '?'}:${cfg.appPort || '?'}`;
+    el.innerHTML =
+      `<strong>Server mismatch.</strong> This entity was paired against ` +
+      `<code>${escHtml(pairedAddr)}</code> but the dashboard is connected to ` +
+      `<code>${escHtml(currentAddr)}</code>. Update Settings → Server (and player token) ` +
+      `to fetch this entity, otherwise it will show <code>not_found</code>.`;
+  } else {
+    el.innerHTML =
+      `<strong>Player token mismatch.</strong> The server matches, but the player token ` +
+      `in this pairing notification differs from the one saved in Settings. ` +
+      `The entity is registered to a different player session — update your player token ` +
+      `in Settings to fetch it, otherwise it will show <code>not_found</code>.`;
+  }
+  el.style.display = '';
 }
 
 async function savePairName() {
@@ -426,6 +454,7 @@ function showSwitchPairModal(paired) {
   document.getElementById('switchRenameTitle').textContent = 'Name this Switch';
   document.getElementById('switchRenameSub').textContent = `Entity ID: ${paired.entityId}`;
   document.getElementById('switchRenameInput').value = 'Smart Switch';
+  _renderMismatchBanner('switchServerMismatch', paired);
   document.getElementById('switchRenameModal').classList.add('show');
   setTimeout(() => document.getElementById('switchRenameInput').focus(), 50);
 }
@@ -436,6 +465,7 @@ function showSwitchRenameModal(entityId) {
   document.getElementById('switchRenameTitle').textContent = 'Rename Switch';
   document.getElementById('switchRenameSub').textContent = `Entity ID: ${entityId}`;
   document.getElementById('switchRenameInput').value = sw?.label || '';
+  _renderMismatchBanner('switchServerMismatch', null);
   document.getElementById('switchRenameModal').classList.add('show');
   setTimeout(() => document.getElementById('switchRenameInput').select(), 50);
 }
