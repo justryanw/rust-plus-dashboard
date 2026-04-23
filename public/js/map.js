@@ -482,59 +482,223 @@ const TEAM_NOTE_COLORS = [
   0xa855f7, // 4 purple
   0x14b8a6, // 5 teal
 ];
-// Order matches the in-game editor's icon grid (left-to-right, top-to-bottom)
-const TEAM_NOTE_ICONS = [
-  "📍", // 0  pin
-  "💵", // 1  dollar
-  "🏠", // 2  house
-  "💎", // 3  diamond
-  "🎯", // 4  target
-  "🛡", // 5  shield
-  "💀", // 6  skull
-  "🛏", // 7  bed
-  "💤", // 8  sleep
-  "🔫", // 9  pistol
-  "🏍", // 10 dirtbike
-  "💼", // 11 briefcase
+
+// Multiply each RGB channel by `factor` (0=black, 1=identity, >1=brighter).
+// Used to derive the darker icon-silhouette tone from the selected disc color.
+function shadeColor(color, factor) {
+  const r = (color >> 16) & 0xff;
+  const g = (color >> 8) & 0xff;
+  const b = color & 0xff;
+  const clamp = (v) => Math.max(0, Math.min(255, Math.round(v * factor)));
+  return (clamp(r) << 16) | (clamp(g) << 8) | clamp(b);
+}
+// Hand-drawn icon silhouettes. Each takes `(g, dark, light)` — `dark` is the
+// silhouette colour (a darker shade of the team colour) and `light` is the
+// disc fill (used for cutouts/details so the icon stays 2-tone within the
+// chosen colour). Geometry is centred on (0, 0) and stays within ±9 px.
+const TEAM_NOTE_ICON_DRAWERS = [
+  // 0 — pin / location
+  (g, dark, light) => {
+    g.beginFill(dark);
+    g.moveTo(0, 8);
+    g.bezierCurveTo(-7, 1, -7, -5, 0, -8);
+    g.bezierCurveTo(7, -5, 7, 1, 0, 8);
+    g.endFill();
+    g.beginFill(light);
+    g.drawCircle(0, -3, 2.4);
+    g.endFill();
+  },
+  // 1 — dollar
+  (g, dark) => {
+    g.lineStyle(1.6, dark);
+    g.moveTo(0, -9); g.lineTo(0, 9);
+    g.beginFill(0, 0);
+    g.moveTo(5, -5);
+    g.bezierCurveTo(5, -8, -5, -8, -5, -5);
+    g.bezierCurveTo(-5, -2, 5, -2, 5, 1);
+    g.bezierCurveTo(5, 4, -5, 4, -5, 1);
+    g.endFill();
+    g.lineStyle(0);
+  },
+  // 2 — house
+  (g, dark, light) => {
+    g.beginFill(dark);
+    g.moveTo(0, -8); g.lineTo(-8, -1); g.lineTo(8, -1); g.closePath();
+    g.drawRect(-6, -1, 12, 8);
+    g.endFill();
+    g.beginFill(light);
+    g.drawRect(-1.5, 2, 3, 5);
+    g.endFill();
+  },
+  // 3 — parachute
+  (g, dark, light) => {
+    g.beginFill(dark);
+    g.arc(0, -1, 8, Math.PI, 0, false);
+    g.lineTo(8, -1); g.lineTo(-8, -1); g.closePath();
+    g.endFill();
+    // Canopy panel divisions
+    g.beginFill(light, 0.6);
+    g.moveTo(-3, -1); g.lineTo(0, -8); g.lineTo(-1.5, -1); g.closePath();
+    g.moveTo(3, -1);  g.lineTo(0, -8); g.lineTo(1.5, -1); g.closePath();
+    g.endFill();
+    g.lineStyle(1, dark);
+    g.moveTo(-7, -1); g.lineTo(0, 6);
+    g.moveTo(-3, -1); g.lineTo(0, 6);
+    g.moveTo(3, -1);  g.lineTo(0, 6);
+    g.moveTo(7, -1);  g.lineTo(0, 6);
+    g.lineStyle(0);
+    g.beginFill(dark);
+    g.drawCircle(0, 7, 1.5);
+    g.endFill();
+  },
+  // 4 — target / crosshair
+  (g, dark) => {
+    g.lineStyle(1.4, dark);
+    g.beginFill(0, 0);
+    g.drawCircle(0, 0, 7);
+    g.drawCircle(0, 0, 4);
+    g.endFill();
+    g.lineStyle(0);
+    g.beginFill(dark);
+    g.drawCircle(0, 0, 1.5);
+    g.endFill();
+    g.lineStyle(1.4, dark);
+    g.moveTo(-9, 0); g.lineTo(-7, 0);
+    g.moveTo(7, 0);  g.lineTo(9, 0);
+    g.moveTo(0, -9); g.lineTo(0, -7);
+    g.moveTo(0, 7);  g.lineTo(0, 9);
+    g.lineStyle(0);
+  },
+  // 5 — shield
+  (g, dark) => {
+    g.beginFill(dark);
+    g.moveTo(0, -8);
+    g.lineTo(7, -6);
+    g.lineTo(7, 1);
+    g.bezierCurveTo(7, 5, 4, 7, 0, 8);
+    g.bezierCurveTo(-4, 7, -7, 5, -7, 1);
+    g.lineTo(-7, -6);
+    g.closePath();
+    g.endFill();
+  },
+  // 6 — skull
+  (g, dark, light) => {
+    g.beginFill(dark);
+    g.drawCircle(0, -2, 6);
+    g.drawRoundedRect(-3.5, 3, 7, 4, 1);
+    g.endFill();
+    g.beginFill(light);
+    g.drawCircle(-2.4, -2, 1.4);
+    g.drawCircle(2.4, -2, 1.4);
+    g.drawRect(-0.7, 0, 1.4, 1.6);
+    g.drawRect(-2.4, 4, 1.2, 2);
+    g.drawRect(-0.6, 4, 1.2, 2);
+    g.drawRect(1.2, 4, 1.2, 2);
+    g.endFill();
+  },
+  // 7 — bed
+  (g, dark) => {
+    g.beginFill(dark);
+    g.drawRect(-8, -3, 2, 8);
+    g.drawRect(-6, 1, 14, 4);
+    g.drawRect(-5, -2, 4, 3);
+    g.drawRect(-8, 5, 2, 2);
+    g.drawRect(6, 5, 2, 2);
+    g.endFill();
+  },
+  // 8 — zzz / sleep
+  (g, dark) => {
+    g.lineStyle(1.4, dark);
+    g.beginFill(0, 0);
+    g.moveTo(-8, -4); g.lineTo(-4, -4); g.lineTo(-8, -1); g.lineTo(-4, -1);
+    g.moveTo(-2, -1); g.lineTo(3, -1);  g.lineTo(-2, 4);  g.lineTo(3, 4);
+    g.moveTo(4, 3);   g.lineTo(8, 3);   g.lineTo(4, 7);   g.lineTo(8, 7);
+    g.lineStyle(0);
+  },
+  // 9 — pistol
+  (g, dark, light) => {
+    g.beginFill(dark);
+    g.drawRoundedRect(-8, -3, 14, 4, 0.8);
+    g.drawRect(2.5, -5, 1.5, 2);
+    g.moveTo(-7, 1); g.lineTo(-3, 1); g.lineTo(-1.5, 8); g.lineTo(-6, 8); g.closePath();
+    g.drawRoundedRect(-3, 1, 4, 3, 1);
+    g.endFill();
+    g.beginFill(light);
+    g.drawRect(-2, 1.8, 2.5, 1.6);
+    g.endFill();
+  },
+  // 10 — rock / boulder
+  (g, dark, light) => {
+    g.beginFill(dark);
+    g.moveTo(-7, 2);
+    g.lineTo(-8, -2);
+    g.lineTo(-4, -6);
+    g.lineTo(2, -7);
+    g.lineTo(7, -3);
+    g.lineTo(8, 3);
+    g.lineTo(4, 7);
+    g.lineTo(-3, 7);
+    g.closePath();
+    g.endFill();
+    // Facet highlight using the light tone
+    g.beginFill(light, 0.55);
+    g.moveTo(-4, -6); g.lineTo(2, -7); g.lineTo(0, -3); g.lineTo(-3, -2); g.closePath();
+    g.moveTo(2, -7);  g.lineTo(7, -3); g.lineTo(4, -1); g.lineTo(0, -3); g.closePath();
+    g.endFill();
+  },
+  // 11 — treasure chest
+  (g, dark, light) => {
+    g.beginFill(dark);
+    // Rounded lid
+    g.moveTo(-8, 0);
+    g.bezierCurveTo(-8, -8, 8, -8, 8, 0);
+    g.lineTo(8, 1);
+    g.lineTo(-8, 1);
+    g.closePath();
+    // Body
+    g.drawRoundedRect(-8, 1, 16, 7, 1);
+    g.endFill();
+    // Lid/body separator + corner braces + lock plate using the light tone
+    g.beginFill(light);
+    g.drawRect(-8, 0.5, 16, 0.8);
+    g.drawRect(-7, -3, 1.2, 11);
+    g.drawRect(5.8, -3, 1.2, 11);
+    g.drawRoundedRect(-2, -1, 4, 4, 0.6);
+    g.endFill();
+    // Keyhole punched back through to dark
+    g.beginFill(dark);
+    g.drawCircle(0, 0.5, 0.7);
+    g.drawRect(-0.4, 0.5, 0.8, 1.4);
+    g.endFill();
+  },
 ];
 
 function makeTeamNoteMarker(note) {
   const c = new PIXI.Container();
   const isDeath = (note.type ?? 0) === 0;
   const colorIdx = note.colourIndex ?? 0; // default yellow (Rust+ omits when default)
-  const color = TEAM_NOTE_COLORS[colorIdx % TEAM_NOTE_COLORS.length];
+  const light = TEAM_NOTE_COLORS[colorIdx % TEAM_NOTE_COLORS.length];
+  const dark = shadeColor(light, 0.42);   // ~58% darker — silhouette tone
+  const rim = shadeColor(light, 0.28);    // even darker for the disc rim
   const iconIdx = isDeath ? 6 : (note.icon ?? 0); // death marker → skull
-  const iconChar = TEAM_NOTE_ICONS[iconIdx % TEAM_NOTE_ICONS.length];
+  const drawer = TEAM_NOTE_ICON_DRAWERS[iconIdx % TEAM_NOTE_ICON_DRAWERS.length];
 
   const radius = 13;
 
-  // Solid colored disc centred on the world location, with a thin dark
-  // outline for separation against light map tiles. Mirrors the in-game look:
-  // a flat coloured chip, no pin tail.
+  // Disc — light fill + matching dark rim, all derived from the team colour
   const disc = new PIXI.Graphics();
-  disc.lineStyle(1.5, 0x000000, 0.85);
-  disc.beginFill(color, 1);
+  disc.lineStyle(1.5, rim, 1);
+  disc.beginFill(light, 1);
   disc.drawCircle(0, 0, radius);
   disc.endFill();
-  // Subtle inner highlight ring for the "raised" look in the editor screenshot
-  disc.lineStyle(1, 0xffffff, 0.18);
-  disc.drawCircle(0, 0, radius - 1.5);
   c.addChild(disc);
 
-  // Icon glyph centred. Append U+FE0E (text-presentation selector) so emoji
-  // capable of monochrome rendering use that form, closer to the in-game
-  // black-silhouette icons.
-  const iconText = new PIXI.Text(iconChar + "\uFE0E", {
-    fontSize: 16,
-    fontFamily: '"Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", system-ui, sans-serif',
-    fill: 0x111111,
-  });
-  iconText.anchor.set(0.5);
-  iconText.position.set(0, 0);
-  iconText.resolution = _TEXT_RESOLUTION;
-  c.addChild(iconText);
+  // Icon silhouette drawn at the dark tone, with cutouts in the light tone
+  // so the icon stays a true two-tone within the chosen colour.
+  const iconG = new PIXI.Graphics();
+  drawer(iconG, dark, light);
+  c.addChild(iconG);
 
-  // Optional user-entered label below the disc
   if (note.label) {
     const labelText = _makeMarkerText(note.label);
     labelText.anchor.set(0.5, 0);
