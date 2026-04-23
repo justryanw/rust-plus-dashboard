@@ -506,47 +506,46 @@ function makeTeamNoteMarker(note) {
   const iconIdx = isDeath ? 6 : (note.icon ?? 0); // death marker → skull
   const iconChar = TEAM_NOTE_ICONS[iconIdx % TEAM_NOTE_ICONS.length];
 
-  const headRadius = 9;
-  const stem = 12; // distance from tip (location) to centre of head
+  const radius = 13;
 
-  // Pin: triangle stem with circular head; tip at (0, 0) = the actual location
-  const pin = new PIXI.Graphics();
-  pin.beginFill(color, 1);
-  pin.lineStyle(1.5, 0x000000, 0.85);
-  pin.moveTo(0, 0);
-  pin.lineTo(-headRadius * 0.55, -stem);
-  pin.lineTo(headRadius * 0.55, -stem);
-  pin.lineTo(0, 0);
-  pin.endFill();
-  pin.beginFill(color, 1);
-  pin.lineStyle(1.5, 0x000000, 0.85);
-  pin.drawCircle(0, -stem - headRadius * 0.4, headRadius);
-  pin.endFill();
-  c.addChild(pin);
+  // Solid colored disc centred on the world location, with a thin dark
+  // outline for separation against light map tiles. Mirrors the in-game look:
+  // a flat coloured chip, no pin tail.
+  const disc = new PIXI.Graphics();
+  disc.lineStyle(1.5, 0x000000, 0.85);
+  disc.beginFill(color, 1);
+  disc.drawCircle(0, 0, radius);
+  disc.endFill();
+  // Subtle inner highlight ring for the "raised" look in the editor screenshot
+  disc.lineStyle(1, 0xffffff, 0.18);
+  disc.drawCircle(0, 0, radius - 1.5);
+  c.addChild(disc);
 
-  // Icon glyph centred in the head
-  const iconText = new PIXI.Text(iconChar, {
-    fontSize: 12,
+  // Icon glyph centred. Append U+FE0E (text-presentation selector) so emoji
+  // capable of monochrome rendering use that form, closer to the in-game
+  // black-silhouette icons.
+  const iconText = new PIXI.Text(iconChar + "\uFE0E", {
+    fontSize: 16,
     fontFamily: '"Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", system-ui, sans-serif',
-    fill: 0xffffff,
+    fill: 0x111111,
   });
   iconText.anchor.set(0.5);
-  iconText.position.set(0, -stem - headRadius * 0.4);
+  iconText.position.set(0, 0);
   iconText.resolution = _TEXT_RESOLUTION;
   c.addChild(iconText);
 
-  // Optional user-entered label below the pin
+  // Optional user-entered label below the disc
   if (note.label) {
     const labelText = _makeMarkerText(note.label);
     labelText.anchor.set(0.5, 0);
-    labelText.position.set(0, 4);
+    labelText.position.set(0, radius + 3);
     c.addChild(labelText);
   }
 
   c._screenScale = true;
   c.interactive = true;
   c.cursor = "default";
-  c.hitArea = new PIXI.Circle(0, -stem - headRadius * 0.4, headRadius + 4);
+  c.hitArea = new PIXI.Circle(0, 0, radius + 2);
   return c;
 }
 
