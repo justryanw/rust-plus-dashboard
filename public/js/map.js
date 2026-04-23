@@ -78,18 +78,19 @@ function initPixiApp() {
   const container = document.getElementById('mapContainer');
   container.innerHTML = `
     <div class="map-wrapper" id="mapWrapper">
-      <div class="map-toolbar">
-        <button class="btn btn-ghost map-toolbar-btn" onclick="refreshMapMarkers()" title="Refresh markers">↻ Refresh</button>
-        <span class="map-toolbar-info" id="mapMarkerCount"></span>
-        <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+      <div class="map-viewport" id="mapViewport">
+        <div id="mapPixiContainer"></div>
+        <div class="map-toolbar map-toolbar--overlay map-toolbar--left">
+          <button class="btn btn-ghost map-toolbar-btn" onclick="refreshMapMarkers()" title="Refresh markers">↻</button>
+          <span class="map-toolbar-info" id="mapMarkerCount"></span>
+        </div>
+        <div class="map-toolbar map-toolbar--overlay map-toolbar--right">
           <button class="btn btn-ghost map-toolbar-btn" id="mapDrawToggle" onclick="toggleDrawMode()">Draw</button>
           <button class="btn btn-ghost map-toolbar-btn" id="mapEraseToggle" onclick="toggleEraseMode()">Eraser</button>
           <input type="color" id="mapDrawColor" value="${_drawColor}" onchange="_drawColor=this.value" title="Draw color" style="width:28px;height:28px;padding:0;border:1px solid var(--border);border-radius:4px;background:none;cursor:pointer" />
           <input type="range" id="mapBrushSize" min="0" max="1000" value="${brushSizeToSlider(_drawWidth)}" oninput="_drawWidth=sliderToBrushSize(Number(this.value))" title="Brush size" style="width:200px;cursor:pointer" />
+          <button class="btn btn-ghost map-toolbar-btn" id="mapFullscreenToggle" onclick="toggleMapFullscreen()" title="Toggle fullscreen">⛶</button>
         </div>
-      </div>
-      <div class="map-viewport" id="mapViewport">
-        <div id="mapPixiContainer"></div>
         <div id="vendingPopupOverlay" style="position:absolute;inset:0;pointer-events:none;z-index:10"></div>
       </div>
     </div>`;
@@ -483,6 +484,22 @@ function toggleDrawMode() {
   document.getElementById('mapEraseToggle')?.classList.toggle('active', _eraseMode);
   updateDrawCursor();
 }
+
+async function toggleMapFullscreen() {
+  const wrapper = document.getElementById('mapWrapper');
+  if (!wrapper) return;
+  if (document.fullscreenElement) {
+    await document.exitFullscreen();
+  } else {
+    await wrapper.requestFullscreen();
+  }
+}
+
+// When the browser enters/exits fullscreen, the wrapper's size changes; Pixi
+// only listens to window resize, so we have to nudge it.
+document.addEventListener('fullscreenchange', () => {
+  if (_pixiApp) _pixiApp.resize();
+});
 
 function toggleEraseMode() {
   _eraseMode = !_eraseMode;

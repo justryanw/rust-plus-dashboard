@@ -996,6 +996,22 @@ textarea { min-height: 70px; resize: vertical; }
   gap: 12px;
 }
 
+.map-toolbar--overlay {
+  position: absolute;
+  top: 8px;
+  z-index: 20;
+  padding: 6px 10px;
+  background: rgba(20, 20, 26, 0.78);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  width: auto;
+}
+
+.map-toolbar--left { left: 8px; }
+.map-toolbar--right { right: 8px; }
+
 .map-toolbar-btn {
   padding: 5px 12px;
   font-size: 0.82rem;
@@ -1016,6 +1032,16 @@ textarea { min-height: 70px; resize: vertical; }
   background: #111;
   cursor: grab;
   position: relative;
+}
+
+/* When the wrapper goes fullscreen, fill the screen and let the viewport
+   take the whole area (override the calc() height). */
+.map-wrapper:fullscreen { background: #111; padding: 0; }
+.map-wrapper:fullscreen .map-viewport {
+  width: 100vw;
+  height: 100vh;
+  border-radius: 0;
+  border: none;
 }
 
 .map-viewport canvas {
