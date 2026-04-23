@@ -11,7 +11,7 @@ buildNpmPackage {
 
   src = lib.cleanSource ../.;
 
-  npmDepsHash = "sha256-ryd55aXHQlW9XwlRwL3z7xhAqLIhGYFRpgM10Vndvag=";
+  npmDepsHash = "sha256-WHwrAg/2LVMpTah1W1K2oC2QRa8nKIeN86RA1O+Fvk4=";
 
   dontNpmBuild = true;
 
