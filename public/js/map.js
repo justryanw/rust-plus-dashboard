@@ -179,6 +179,136 @@ function getSteamProfile(steamId) {
   return p;
 }
 
+// Friendly names for the most common Rust+ monument tokens. Anything not in
+// this table falls back to a prettified version of the raw token.
+const MONUMENT_NAMES = {
+  airfield_display_name: "Airfield",
+  bandit_camp: "Bandit Camp",
+  dome_monument_name: "The Dome",
+  excavator: "Giant Excavator Pit",
+  ferryterminal: "Ferry Terminal",
+  fishing_village_display_name: "Fishing Village",
+  fishing_village_display_name_b: "Fishing Village",
+  gas_station: "Oxum's Gas Station",
+  harbor_2_display_name: "Large Harbor",
+  harbor_display_name: "Small Harbor",
+  junkyard_display_name: "Junkyard",
+  large_oil_rig: "Large Oil Rig",
+  lighthouse_display_name: "Lighthouse",
+  military_tunnels_display_name: "Military Tunnel",
+  mining_outpost_display_name: "Mining Outpost",
+  mining_quarry_hqm_display_name: "HQM Quarry",
+  mining_quarry_stone_display_name: "Stone Quarry",
+  mining_quarry_sulfur_display_name: "Sulfur Quarry",
+  oil_rig_small: "Small Oil Rig",
+  outpost: "Outpost",
+  power_plant_display_name: "Power Plant",
+  power_substation: "Power Substation",
+  radtown_display_name: "Radtown",
+  satellite_dish_display_name: "Satellite Dish",
+  sewer_display_name: "Sewer Branch",
+  stables_a: "Ranch",
+  stables_b: "Large Barn",
+  supermarket: "Abandoned Supermarket",
+  swamp_a: "Abandoned Cabins",
+  swamp_b: "Abandoned Cabins",
+  swamp_c: "Abandoned Cabins",
+  train_tunnel_display_name: "Train Tunnel",
+  train_tunnel_link_display_name: "Train Tunnel",
+  train_yard_display_name: "Train Yard",
+  underwater_lab: "Underwater Lab",
+  water_treatment_plant_display_name: "Water Treatment Plant",
+  water_well_a: "Water Well",
+  water_well_b: "Water Well",
+  water_well_c: "Water Well",
+  water_well_d: "Water Well",
+  water_well_e: "Water Well",
+  arctic_research_base_a: "Arctic Research Base",
+  nuclear_missile_silo: "Missile Silo",
+  AbandonedMilitaryBase: "Abandoned Military Base",
+};
+
+// Tokens to suppress on the map entirely (return null from the prettifier).
+function _isHiddenMonument(cleanToken) {
+  const lc = cleanToken.toLowerCase();
+  return lc.includes("moonpool") || lc.includes("moon_pool");
+}
+
+// Tokens that should render as the tram icon instead of as text.
+function _isTrainTunnelToken(cleanToken) {
+  return /train_tunnel/i.test(cleanToken);
+}
+
+function _prettifyMonumentToken(token) {
+  if (!token) return "";
+
+  // Some tokens arrive as full asset paths e.g.
+  // `assets/bundled/prefabs/.../underwater_lab_a.prefab` — strip path + ext.
+  let t = token;
+  if (t.includes("/")) t = t.split("/").pop();
+  t = t.replace(/\.prefab$/i, "");
+
+  if (_isHiddenMonument(t)) return null;
+
+  // Direct lookup against the curated table
+  if (MONUMENT_NAMES[t]) return MONUMENT_NAMES[t];
+
+  // Heuristic groupings for variant prefabs that all denote the same monument
+  const lc = t.toLowerCase();
+  if (lc.includes("underwater_lab")) return "Underwater Lab";
+  if (lc.startsWith("arctic")) return "Arctic Research Base";
+  if (lc.includes("nuclear_missile")) return "Missile Silo";
+  if (lc.startsWith("water_well")) return "Water Well";
+  if (lc.startsWith("swamp")) return "Abandoned Cabins";
+  if (lc.startsWith("fishing_village")) return "Fishing Village";
+
+  // Fallback: strip common suffixes, normalise underscores, title-case
+  return t
+    .replace(/_display_name$/i, "")
+    .replace(/_monument_name$/i, "")
+    .replace(/_/g, " ")
+    .trim()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// Material-style "tram" badge — front view of a tram on a circular light
+// background. Body has a domed top, two large windows side-by-side, a
+// headlight strip, and small wheels visible at the bottom.
+function _drawTramFront(g) {
+  // Circular badge background
+  g.lineStyle(1.2, 0x000000, 0.9);
+  g.beginFill(0xf2f2f2, 1);
+  g.drawCircle(0, 0, 11);
+  g.endFill();
+  g.lineStyle(0);
+
+  // Tram body — taller than wide, top corners more rounded ("domed roof")
+  g.beginFill(0x1a1a1a);
+  g.drawRoundedRect(-6, -7, 12, 13, 3);
+  g.endFill();
+
+  // Two large front windows — wider than tall, sitting just under the roof
+  g.beginFill(0xf2f2f2);
+  g.drawRoundedRect(-5, -5.5, 4.5, 4, 0.8);
+  g.drawRoundedRect(0.5, -5.5, 4.5, 4, 0.8);
+  g.endFill();
+
+  // Slim headlight strip across the lower face
+  g.beginFill(0xf2f2f2, 0.85);
+  g.drawRoundedRect(-4.5, 3, 9, 1.2, 0.4);
+  g.endFill();
+
+  // Wheels poking out at the very bottom
+  g.beginFill(0x1a1a1a);
+  g.drawCircle(-3.5, 7, 1.6);
+  g.drawCircle(3.5, 7, 1.6);
+  g.endFill();
+  g.beginFill(0xf2f2f2);
+  g.drawCircle(-3.5, 7, 0.55);
+  g.drawCircle(3.5, 7, 0.55);
+  g.endFill();
+}
+
 // Keys are proto enum names — protobufjs's default toJSON serializes enums as
 // their string names, not integers, so `m.type` arrives as e.g. "Player".
 const MARKER_TYPES = {
@@ -533,12 +663,16 @@ function _tickMarkerInterpolation() {
 
   // Counter-scale opted-in markers so their on-screen size is constant
   // regardless of map zoom. Markers without `_screenScale` (e.g. radius
-  // circles) keep their world-space size.
+  // circles) keep their world-space size. Setting `_maxScreenScale` caps
+  // the inverse-scale, so when the map is zoomed out past the cap the
+  // marker shrinks with the map instead of staying full size.
   if (_mapContainer && _staticMarkersContainer && _movingMarkersContainer) {
     const invScale = 1 / _mapContainer.scale.x;
     for (const c of _movingMarkers.values()) c.scale.set(invScale);
     for (const c of _staticMarkersContainer.children) {
-      if (c._screenScale) c.scale.set(invScale);
+      if (!c._screenScale) continue;
+      const cap = c._maxScreenScale ?? Infinity;
+      c.scale.set(Math.min(invScale, cap));
     }
   }
 
@@ -1118,6 +1252,36 @@ async function renderMarkers() {
 
     _staticMarkersContainer.addChild(markerC);
     count++;
+  }
+
+  // Monuments from the meta endpoint — text labels for most, a tram icon for
+  // train tunnels, and certain tokens (moon pool) suppressed entirely. All
+  // sit behind the clickable markers and counter-scale (capped) with zoom.
+  for (const mon of (_mapMeta.monuments || [])) {
+    const cleanName = _prettifyMonumentToken(mon.token);
+    if (cleanName === null) continue; // hidden
+    const pos = worldToPixel(mon.x, mon.y);
+
+    let visual;
+    if (_isTrainTunnelToken(mon.token || "")) {
+      visual = new PIXI.Graphics();
+      _drawTramFront(visual);
+      visual.alpha = 0.95;
+    } else {
+      visual = _makeMarkerText(cleanName, {
+        fontSize: 11,
+        fontWeight: "700",
+        fill: 0xffffff,
+        dropShadowBlur: 5,
+        dropShadowAlpha: 0.9,
+      });
+      visual.anchor.set(0.5);
+      visual.alpha = 0.9;
+    }
+    visual.position.set(pos.x, pos.y);
+    visual._screenScale = true;
+    visual._maxScreenScale = 2.5;
+    _staticMarkersContainer.addChildAt(visual, 0);
   }
 
   // Render team-placed map notes (always static — no interpolation needed)
