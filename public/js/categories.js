@@ -331,14 +331,14 @@ const _defs = {
     'industrial.wall.light.green','industrial.wall.light.red',
     'iotable','laserlight','microphonestand','mobilephone',
     'powered.water.purifier','rf.detonator','rf_pager',
-    'samsite','smart.alarm','smart.switch','soundlight','storage.monitor',
+    'autoturret','samsite','smart.alarm','smart.switch','soundlight','storage.monitor',
     'storageadaptor','strobelight','telephone',
     'elevator','mini fridge','ptz.cctv.camera','walkietalkie','wiretool','xylophone',
   ],
 
   deployables: [
     'abovegroundpool','armoured.ladder.hatch','armoured.triangle.ladder.hatch',
-    'autoturret','bbq','bathtub.planter','bed','beehive',
+    'bbq','bathtub.planter','bed','beehive',
     'box.repair.bench','box.wooden','box.wooden.large',
     'campfire','cardtable','chair','chair.ejector.seat','chair.icethrone',
     'chickencoop','clantable','clothing.mannequin',

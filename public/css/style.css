@@ -263,6 +263,56 @@ textarea { min-height: 70px; resize: vertical; }
 /* ── Inventory grid ── */
 .category-section { margin-bottom: 28px; }
 .category-header { font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+
+/* Slots view: CSS multi-column layout. Each tile's height tracks its
+   content exactly (no clipping, no wasted whitespace) and tiles flow
+   greedily into columns — much simpler and more reliable than 2D
+   grid-span math, which kept drifting due to font-metric variance. */
+.category-tiles-grid {
+  columns: 240px;
+  column-gap: 8px;
+}
+
+.category-tile {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px;
+  display: inline-block;
+  width: 100%;
+  margin: 0 0 8px 0;
+  break-inside: avoid;
+  -webkit-column-break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.category-tile .category-header {
+  font-size: 0.68rem;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Fixed-size item cells so every tile's items render identically. */
+.category-tile .inv-grid--compact {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 46px);
+  align-content: start;
+  justify-content: start;
+  gap: 3px;
+  margin-bottom: 0;
+}
+
+.category-tile .inv-grid--compact .inv-grid-cell {
+  width: 46px;
+  height: 46px;
+  aspect-ratio: unset;
+}
+
+.category-tile .inv-grid--compact .inv-grid-cell img {
+  width: 75%;
+  height: 75%;
+}
 .inventory-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));

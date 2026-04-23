@@ -534,11 +534,14 @@ function renderInventory() {
         <div class="inventory-grid">${grouped[cat].map(itemCardHTML).join('')}</div>
       </div>`).join('');
   } else if (currentView === 'slots') {
-    container.innerHTML = cats.map(cat => `
-      <div class="category-section">
+    // Tiles flow into a multi-column layout. Each tile sizes naturally to its
+    // item count — no fixed grid spans, no clipping, no wasted vertical space.
+    const tiles = cats.map(cat => `
+      <div class="category-tile">
         <div class="category-header">${CATEGORY_LABELS[cat]}</div>
         <div class="inv-grid inv-grid--compact">${grouped[cat].map(itemCellHTML).join('')}</div>
       </div>`).join('');
+    container.innerHTML = `<div class="category-tiles-grid">${tiles}</div>`;
   } else {
     container.innerHTML = cats.map(cat => `
       <div class="category-section">
